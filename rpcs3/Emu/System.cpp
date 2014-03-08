@@ -7,9 +7,7 @@
 #include "Emu/Cell/SPUThread.h"
 #include "Emu/Cell/PPUInstrTable.h"
 
-#include "scetool/scetool.h"
-
-#include "Loader/SELF.h"
+#include "../Crypto/unself.h"
 #include <cstdlib>
 #include <fstream>
 using namespace PPU_instr;
@@ -27,6 +25,8 @@ Emulator::Emulator()
 	, m_mode(DisAsm)
 	, m_dbg_console(nullptr)
 	, m_rsx_callback(0)
+	, m_ppu_callback_thr(0)
+	, m_event_manager(new EventManager())
 {
 }
 
@@ -89,72 +89,6 @@ void Emulator::CheckStatus()
 	}
 }
 
-bool Emulator::IsSelf(const std::string& path)
-{
-	vfsLocalFile f(path);
-
-	if(!f.IsOpened())
-		return false;
-
-	SceHeader hdr;
-	hdr.Load(f);
-
-	return hdr.CheckMagic();
-}
-
-bool Emulator::DecryptSelf(const std::string& elf, const std::string& self)
-{
-	// Check if the data really needs to be decrypted.
-	wxFile f(self.c_str());
-
-	if(!f.IsOpened())
-	{
-		ConLog.Error("Could not open SELF file! (%s)", self.c_str());
-		return false;
-	}
-	
-	// Get the key version.
-	f.Seek(0x08);
-	be_t<u16> key_version;
-	f.Read(&key_version, sizeof(key_version));
-
-	if(key_version.ToBE() == const_se_t<u16, 0x8000>::value)
-	{
-		ConLog.Warning("Debug SELF detected! Removing fake header...");
-
-		// Get the real elf offset.
-		f.Seek(0x10);
-		be_t<u64> elf_offset;
-		f.Read(&elf_offset, sizeof(elf_offset));
-
-		// Start at the real elf offset.
-		f.Seek(elf_offset);
-
-		wxFile out(elf.c_str(), wxFile::write);
-
-		if(!out.IsOpened())
-		{
-			ConLog.Error("Could not create ELF file! (%s)", elf.c_str());
-			return false;
-		}
-
-		// Copy the data.
-		char buf[2048];
-		while (ssize_t size = f.Read(buf, 2048))
-			out.Write(buf, size);
-	}
-	else
-	{
-		if (!scetool_decrypt((scetool::s8 *)self.c_str(), (scetool::s8 *)elf.c_str()))
-		{
-			ConLog.Write("SELF: Could not decrypt file");
-			return false;
-		}
-	}
-
-	return true;
-}
-
 bool Emulator::BootGame(const std::string& path)
 {
 	static const char* elf_path[6] =
@@ -187,10 +121,10 @@ void Emulator::Load()
 {
 	if(!wxFileExists(m_path)) return;
 
-	if(IsSelf(m_path.c_str()))
+	if(IsSelf(m_path.ToStdString()))
 	{
-		std::string self_path = m_path;
-		std::string elf_path = wxFileName(m_path).GetPath().c_str();
+		std::string self_path = m_path.ToStdString();
+		std::string elf_path = wxFileName(m_path).GetPath().ToStdString();
 
 		if(wxFileName(m_path).GetFullName().CmpNoCase("EBOOT.BIN") == 0)
 		{
@@ -201,12 +135,13 @@ void Emulator::Load()
 			elf_path += "\\" + wxFileName(m_path).GetName() + ".elf";
 		}
 
-		DecryptSelf(elf_path, self_path);
+		if(!DecryptSelf(elf_path, self_path))
+			return;
 
 		m_path = elf_path;
 	}
 
-	ConLog.Write("Loading '%s'...", m_path.mb_str());
+	ConLog.Write("Loading '%s'...", m_path.wx_str());
 	GetInfo().Reset();
 	m_vfs.Init(m_path);
 
@@ -214,7 +149,7 @@ void Emulator::Load()
 	ConLog.Write("Mount info:");
 	for(uint i=0; i<m_vfs.m_devices.GetCount(); ++i)
 	{
-		ConLog.Write("%s -> %s", m_vfs.m_devices[i].GetPs3Path().mb_str(), m_vfs.m_devices[i].GetLocalPath().mb_str());
+		ConLog.Write("%s -> %s", m_vfs.m_devices[i].GetPs3Path().wx_str(), m_vfs.m_devices[i].GetLocalPath().wx_str());
 	}
 	ConLog.SkipLn();
 
@@ -227,7 +162,7 @@ void Emulator::Load()
 
 	if(!f.IsOpened())
 	{
-		ConLog.Error("Elf not found! (%s - %s)", m_path.mb_str(), m_elf_path.mb_str());
+		ConLog.Error("Elf not found! (%s - %s)", m_path.wx_str(), m_elf_path.wx_str());
 		return;
 	}
 
@@ -236,7 +171,7 @@ void Emulator::Load()
 
 	try
 	{
-		if(!(is_error = !l.Analyze() || l.GetMachine() == MACHINE_Unknown))
+		if(!(is_error = !l.Analyze()) && l.GetMachine() != MACHINE_Unknown)
 		{
 			switch(l.GetMachine())
 			{
@@ -303,19 +238,21 @@ void Emulator::Load()
 		ConLog.Write("offset = 0x%llx", Memory.MainMem.GetStartAddr());
 		ConLog.Write("max addr = 0x%x", l.GetMaxAddr());
 		thread.SetOffset(Memory.MainMem.GetStartAddr());
-		Memory.MainMem.Alloc(Memory.MainMem.GetStartAddr() + l.GetMaxAddr(), 0xFFFFED - l.GetMaxAddr());
+		Memory.MainMem.AllocFixed(Memory.MainMem.GetStartAddr() + l.GetMaxAddr(), 0xFFFFED - l.GetMaxAddr());
 		thread.SetEntry(l.GetEntry() - Memory.MainMem.GetStartAddr());
 	break;
 
 	case MACHINE_PPC64:
 	{
+		m_ppu_callback_thr = &GetCPU().AddThread(CPU_THREAD_PPU);
+
 		thread.SetEntry(l.GetEntry());
-		Memory.StackMem.Alloc(0x1000);
+		Memory.StackMem.AllocAlign(0x1000);
 		thread.InitStack();
-		thread.AddArgv(m_path);
+		thread.AddArgv(m_elf_path);
 		//thread.AddArgv("-emu");
 
-		m_rsx_callback = Memory.MainMem.Alloc(4 * 4) + 4;
+		m_rsx_callback = Memory.MainMem.AllocAlign(4 * 4) + 4;
 		Memory.Write32(m_rsx_callback - 4, m_rsx_callback);
 
 		mem32_ptr_t callback_data(m_rsx_callback);
@@ -323,13 +260,15 @@ void Emulator::Load()
 		callback_data += SC(2);
 		callback_data += BCLR(0x10 | 0x04, 0, 0, 0);
 
-		m_ppu_thr_exit = Memory.MainMem.Alloc(4 * 4);
+		m_ppu_thr_exit = Memory.MainMem.AllocAlign(4 * 4);
 
 		mem32_ptr_t ppu_thr_exit_data(m_ppu_thr_exit);
 		ppu_thr_exit_data += ADDI(3, 0, 0);
 		ppu_thr_exit_data += ADDI(11, 0, 41);
 		ppu_thr_exit_data += SC(2);
 		ppu_thr_exit_data += BCLR(0x10 | 0x04, 0, 0, 0);
+
+		Memory.Write64(Memory.PRXMem.AllocAlign(0x10000), 0xDEADBEEFABADCAFE);
 	}
 	break;
 
@@ -350,10 +289,11 @@ void Emulator::Load()
 
 	GetGSManager().Init();
 	GetCallbackManager().Init();
+	GetAudioManager().Init();
+	GetEventManager().Init();
 
 	thread.Run();
 
-	wxCriticalSectionLocker lock(m_cs_status);
 	m_status = Ready;
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_READY_EMU);
@@ -378,7 +318,6 @@ void Emulator::Run()
 	wxGetApp().SendDbgCommand(DID_START_EMU);
 #endif
 
-	wxCriticalSectionLocker lock(m_cs_status);
 	//ConLog.Write("run...");
 	m_status = Running;
 
@@ -402,7 +341,6 @@ void Emulator::Pause()
 	wxGetApp().SendDbgCommand(DID_PAUSE_EMU);
 #endif
 
-	wxCriticalSectionLocker lock(m_cs_status);
 	m_status = Paused;
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_PAUSED_EMU);
@@ -417,7 +355,6 @@ void Emulator::Resume()
 	wxGetApp().SendDbgCommand(DID_RESUME_EMU);
 #endif
 
-	wxCriticalSectionLocker lock(m_cs_status);
 	m_status = Running;
 
 	CheckStatus();
@@ -435,10 +372,7 @@ void Emulator::Stop()
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_STOP_EMU);
 #endif
-	{
-		wxCriticalSectionLocker lock(m_cs_status);
-		m_status = Stopped;
-	}
+	m_status = Stopped;
 
 	m_rsx_callback = 0;
 
@@ -449,6 +383,8 @@ void Emulator::Stop()
 	m_vfs.UnMountAll();
 
 	GetGSManager().Close();
+	GetAudioManager().Close();
+	GetEventManager().Clear();
 	GetCPU().Close();
 	//SysCallsManager.Close();
 	GetIdManager().Clear();
@@ -505,7 +441,7 @@ void Emulator::LoadPoints(const std::string& path)
 	if(version != bpdb_version ||
 		(sizeof(u16) + break_count * sizeof(u64) + sizeof(u32) + marked_count * sizeof(u64) + sizeof(u32)) != length)
 	{
-		ConLog.Error("'%s' is broken", path.c_str());
+		ConLog.Error("'%s' is broken", wxString(path).wx_str());
 		return;
 	}
 

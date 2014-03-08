@@ -22,29 +22,80 @@ enum
 	CELL_GCM_DISPLAY_FREQUENCY_DISABLE = 3,
 };
 
+// GCM Texture
+enum
+{
+	// Format
+	CELL_GCM_TEXTURE_B8                     = 0x81,
+	CELL_GCM_TEXTURE_A1R5G5B5               = 0x82,
+	CELL_GCM_TEXTURE_A4R4G4B4               = 0x83,
+	CELL_GCM_TEXTURE_R5G6B5                 = 0x84,
+	CELL_GCM_TEXTURE_A8R8G8B8               = 0x85,
+	CELL_GCM_TEXTURE_COMPRESSED_DXT1        = 0x86,
+	CELL_GCM_TEXTURE_COMPRESSED_DXT23       = 0x87,
+	CELL_GCM_TEXTURE_COMPRESSED_DXT45       = 0x88,
+	CELL_GCM_TEXTURE_G8B8                   = 0x8B,
+	CELL_GCM_TEXTURE_R6G5B5                 = 0x8F,
+	CELL_GCM_TEXTURE_DEPTH24_D8             = 0x90,
+	CELL_GCM_TEXTURE_DEPTH24_D8_FLOAT       = 0x91,
+	CELL_GCM_TEXTURE_DEPTH16                = 0x92,
+	CELL_GCM_TEXTURE_DEPTH16_FLOAT          = 0x93,
+	CELL_GCM_TEXTURE_X16                    = 0x94,
+	CELL_GCM_TEXTURE_Y16_X16                = 0x95,
+	CELL_GCM_TEXTURE_R5G5B5A1               = 0x97,
+	CELL_GCM_TEXTURE_COMPRESSED_HILO8       = 0x98,
+	CELL_GCM_TEXTURE_COMPRESSED_HILO_S8     = 0x99,
+	CELL_GCM_TEXTURE_W16_Z16_Y16_X16_FLOAT  = 0x9A,
+	CELL_GCM_TEXTURE_W32_Z32_Y32_X32_FLOAT  = 0x9B,
+	CELL_GCM_TEXTURE_X32_FLOAT              = 0x9C,
+	CELL_GCM_TEXTURE_D1R5G5B5               = 0x9D,
+	CELL_GCM_TEXTURE_D8R8G8B8               = 0x9E,
+	CELL_GCM_TEXTURE_Y16_X16_FLOAT          = 0x9F,
+	CELL_GCM_TEXTURE_COMPRESSED_B8R8_G8R8   = 0xAD,
+	CELL_GCM_TEXTURE_COMPRESSED_R8B8_R8G8   = 0xAE,
+
+	// Format flags
+	CELL_GCM_TEXTURE_SZ  = 0x00,
+	CELL_GCM_TEXTURE_LN  = 0x20,
+	CELL_GCM_TEXTURE_NR  = 0x00,
+	CELL_GCM_TEXTURE_UN  = 0x40,
+};
+
+// GCM Surface
+enum
+{
+	// Target
+	CELL_GCM_SURFACE_TARGET_NONE    = 0,
+	CELL_GCM_SURFACE_TARGET_0       = 1,
+	CELL_GCM_SURFACE_TARGET_1       = 2,
+	CELL_GCM_SURFACE_TARGET_MRT1    = 0x13,
+	CELL_GCM_SURFACE_TARGET_MRT2    = 0x17,
+	CELL_GCM_SURFACE_TARGET_MRT3    = 0x1f,
+};
+
 struct CellGcmControl
 {
-	u32 put;
-	u32 get;
-	u32 ref;
+	be_t<u32> put;
+	be_t<u32> get;
+	be_t<u32> ref;
 };
 
 struct CellGcmConfig
 {
-	u32 localAddress;
-	u32 ioAddress;
-	u32 localSize;
-	u32 ioSize;
-	u32 memoryFrequency;
-	u32 coreFrequency;
+	be_t<u32> localAddress;
+	be_t<u32> ioAddress;
+	be_t<u32> localSize;
+	be_t<u32> ioSize;
+	be_t<u32> memoryFrequency;
+	be_t<u32> coreFrequency;
 };
 
 struct CellGcmContextData
 {
-	u32 begin;
-	u32 end;
-	u32 current;
-	u32 callback;
+	be_t<u32> begin;
+	be_t<u32> end;
+	be_t<u32> current;
+	be_t<u32> callback;
 };
 
 struct gcmInfo
@@ -96,10 +147,10 @@ struct CellGcmZcullInfo
 
 struct CellGcmTileInfo
 {
-	u32 tile;
-	u32 limit;
-	u32 pitch;
-	u32 format;
+	be_t<u32> tile;
+	be_t<u32> limit;
+	be_t<u32> pitch;
+	be_t<u32> format;
 };
 
 struct GcmZcullInfo
@@ -143,10 +194,10 @@ struct GcmTileInfo
 	{
 		CellGcmTileInfo ret;
 
-		re(ret.tile, (m_location + 1) | (m_bank << 4) | ((m_offset / 0x10000) << 16) | (m_location << 31));
-		re(ret.limit, ((m_offset + m_size - 1) / 0x10000) << 16 | (m_location << 31));
-		re(ret.pitch, (m_pitch / 0x100) << 8);
-		re(ret.format, m_base | ((m_base + ((m_size - 1) / 0x10000)) << 13) | (m_comp << 26) | (1 << 30));
+		ret.tile = (m_location + 1) | (m_bank << 4) | ((m_offset / 0x10000) << 16) | (m_location << 31);
+		ret.limit = ((m_offset + m_size - 1) / 0x10000) << 16 | (m_location << 31);
+		ret.pitch = (m_pitch / 0x100) << 8;
+		ret.format = m_base | ((m_base + ((m_size - 1) / 0x10000)) << 13) | (m_comp << 26) | (1 << 30);
 
 		return ret;
 	}
@@ -1147,6 +1198,7 @@ static const wxString GetMethodName(const u32 id)
 		{ NV4097_SET_TRANSFORM_CONSTANT_LOAD , "SetTransformConstantLoad" } ,
 		{ NV4097_SET_FREQUENCY_DIVIDER_OPERATION , "SetFrequencyDividerOperation" } ,
 		{ NV4097_INVALIDATE_L2 , "InvalidateL2" } ,
+		{ NV4097_SET_TRANSFORM_BRANCH_BITS, "SetTransformBranchBits" } ,
 	};
 
 	for(u32 i = 0; i < WXSIZEOF(METHOD_NAME_LIST); ++i)

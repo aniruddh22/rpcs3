@@ -43,20 +43,25 @@ void SPUThread::InitRegs()
 	GPR[5]._u64[1] = m_args[2];
 	GPR[6]._u64[1] = m_args[3];
 
+	cfg.Reset();
+
 	dmac.ls_offset = m_offset;
 	dmac.proxy_pos = 0;
 	dmac.queue_pos = 0;
+	dmac.proxy_lock = 0;
+	dmac.queue_lock = 0;
 
 	SPU.RunCntl.SetValue(SPU_RUNCNTL_STOP);
 	SPU.Status.SetValue(SPU_STATUS_RUNNING);
 	Prxy.QueryType.SetValue(0);
-	MFC.CMDStatus.SetValue(0);
+	MFC1.CMDStatus.SetValue(0);
+	MFC2.CMDStatus.SetValue(0);
 	//PC = SPU.NPC.GetValue();
 }
 
 u64 SPUThread::GetFreeStackSize() const
 {
-	return (GetStackAddr() + GetStackSize()) - GPR[1]._u64[3];
+	return (GetStackAddr() + GetStackSize()) - GPR[1]._u32[3];
 }
 
 void SPUThread::DoRun()
@@ -73,7 +78,7 @@ void SPUThread::DoRun()
 	break;
 	}
 
-	Pause();
+	//Pause();
 	//Emu.Pause();
 }
 
@@ -89,4 +94,23 @@ void SPUThread::DoStop()
 {
 	delete m_dec;
 	m_dec = nullptr;
+}
+
+void SPUThread::DoClose()
+{
+	// disconnect all event ports
+	if (Emu.IsStopped())
+	{
+		return;
+	}
+	for (u32 i = 0; i < 64; i++)
+	{
+		EventPort& port = SPUPs[i];
+		SMutexLocker lock(port.mutex);
+		if (port.eq)
+		{
+			port.eq->ports.remove(&port);
+			port.eq = nullptr;
+		}
+	}
 }

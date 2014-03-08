@@ -36,7 +36,7 @@ CPUThread& CPUThreadManager::AddThread(CPUThreadType type)
 	default: assert(0);
 	}
 	
-	new_thread->SetId(Emu.GetIdManager().GetNewID(wxString::Format("%s Thread", new_thread->GetTypeString().mb_str()), new_thread));
+	new_thread->SetId(Emu.GetIdManager().GetNewID(wxString::Format("%s Thread", new_thread->GetTypeString().wx_str()).ToStdString(), new_thread));
 
 	m_threads.Add(new_thread);
 #ifndef QT_UI
@@ -64,27 +64,20 @@ void CPUThreadManager::RemoveThread(const u32 id)
 #ifndef QT_UI
 		wxGetApp().SendDbgCommand(DID_REMOVE_THREAD, thr);
 #endif
-		if(thr->IsAlive())
-		{
-			thr->Close();
-		}
-		else
-		{
-			thr->Close();
-			delete thr;
-		}
-
+		thr->Close();
 
 		m_threads.RemoveFAt(i);
-		i--;
+		break;
 	}
 
-	Emu.GetIdManager().RemoveID(id, false);
+	Emu.GetIdManager().RemoveID(id);
 	Emu.CheckStatus();
 }
 
 s32 CPUThreadManager::GetThreadNumById(CPUThreadType type, u32 id)
 {
+	std::lock_guard<std::mutex> lock(m_mtx_thread);
+
 	s32 num = 0;
 
 	for(u32 i=0; i<m_threads.GetCount(); ++i)
@@ -98,16 +91,19 @@ s32 CPUThreadManager::GetThreadNumById(CPUThreadType type, u32 id)
 
 CPUThread* CPUThreadManager::GetThread(u32 id)
 {
-	for(u32 i=0; i<m_threads.GetCount(); ++i)
-	{
-		if(m_threads[i].GetId() == id) return &m_threads[i];
-	}
+	CPUThread* res;
 
-	return nullptr;
+	if (!id) return nullptr;
+
+	if (!Emu.GetIdManager().GetIDData(id, res)) return nullptr;
+
+	return res;
 }
 
 void CPUThreadManager::Exec()
 {
+	std::lock_guard<std::mutex> lock(m_mtx_thread);
+
 	for(u32 i=0; i<m_threads.GetCount(); ++i)
 	{
 		m_threads[i].Exec();

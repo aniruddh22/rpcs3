@@ -2,6 +2,7 @@
 #include "Emu/Cell/PPCThread.h"
 #include "Emu/SysCalls/SysCalls.h"
 #include "rpcs3.h"
+#include <cmath>
 
 enum
 {
@@ -370,14 +371,14 @@ struct PPCdouble
 		case _FPCLASS_PINF:		return FPR_PINF;
 		}
 #else
-        switch (fpc)
-        {
-        case FP_NAN:        return FPR_QNAN;
-        case FP_INFINITE:   return signbit(_double) ? FPR_NINF : FPR_PINF;
-        case FP_SUBNORMAL:  return signbit(_double) ? FPR_ND : FPR_PD;
-        case FP_ZERO:       return signbit(_double) ? FPR_NZ : FPR_PZ;
-        default:            return signbit(_double) ? FPR_NN : FPR_PN;
-        }
+		switch (fpc)
+		{
+		case FP_NAN:		return FPR_QNAN;
+		case FP_INFINITE:	return std::signbit(_double) ? FPR_NINF : FPR_PINF;
+		case FP_SUBNORMAL:	return std::signbit(_double) ? FPR_ND : FPR_PD;
+		case FP_ZERO:		return std::signbit(_double) ? FPR_NZ : FPR_PZ;
+		default:			return std::signbit(_double) ? FPR_NN : FPR_PN;
+		}
 #endif
 
 		throw wxString::Format("PPCdouble::UpdateType() -> unknown fpclass (0x%04x).", fpc);
@@ -525,6 +526,9 @@ static const s32 MAX_INT_VALUE = 0x7fffffff;
 class PPUThread : public PPCThread
 {
 public:
+	std::atomic<u32> owned_mutexes;
+
+public:
 	PPCdouble FPR[32]; //Floating Point Register
 	FPSCRhdr FPSCR; //Floating Point Status and Control Register
 	u64 GPR[32]; //General-Purpose Register
@@ -602,14 +606,11 @@ public:
 		};
 	};
 
-	u64 reserve_addr;
-	bool reserve;
-
 	u64 cycle;
 
 public:
 	PPUThread();
-	~PPUThread();
+	virtual ~PPUThread();
 
 	inline u8 GetCR(const u8 n) const
 	{
@@ -720,7 +721,7 @@ public:
 
 	const u8 IsCR(const u32 bit) const { return (GetCR(bit >> 2) & GetCRBit(bit)) ? 1 : 0; }
 
-	bool IsCarry(const u64 a, const u64 b) { return a > (~b); }
+	bool IsCarry(const u64 a, const u64 b) { return a > (a + b); }
 
 	void SetFPSCRException(const FPSCR_EXP mask)
 	{
@@ -739,19 +740,19 @@ public:
 		wxString ret = "Registers:\n=========\n";
 
 		for(uint i=0; i<32; ++i) ret += wxString::Format("GPR[%d] = 0x%llx\n", i, GPR[i]);
-		for(uint i=0; i<32; ++i) ret += wxString::Format("FPR[%d] = %.6G\n", i, FPR[i]);
-		for(uint i=0; i<32; ++i) ret += wxString::Format("VPR[%d] = 0x%s [%s]\n", i, VPR[i].ToString(true).mb_str(), VPR[i].ToString().mb_str());
-		ret += wxString::Format("CR = 0x%08x\n", CR);
+		for(uint i=0; i<32; ++i) ret += wxString::Format("FPR[%d] = %.6G\n", i, (double)FPR[i]);
+		for(uint i=0; i<32; ++i) ret += wxString::Format("VPR[%d] = 0x%s [%s]\n", i, (const char*)VPR[i].ToString(true).wx_str(), (const char*)VPR[i].ToString().wx_str());
+		ret += wxString::Format("CR = 0x%08x\n", CR.CR);
 		ret += wxString::Format("LR = 0x%llx\n", LR);
 		ret += wxString::Format("CTR = 0x%llx\n", CTR);
-		ret += wxString::Format("XER = 0x%llx [CA=%lld | OV=%lld | SO=%lld]\n", XER, XER.CA, XER.OV, XER.SO);
+		ret += wxString::Format("XER = 0x%llx [CA=%lld | OV=%lld | SO=%lld]\n", XER.XER, XER.CA, XER.OV, XER.SO);
 		ret += wxString::Format("FPSCR = 0x%x "
 			"[RN=%d | NI=%d | XE=%d | ZE=%d | UE=%d | OE=%d | VE=%d | "
 			"VXCVI=%d | VXSQRT=%d | VXSOFT=%d | FPRF=%d | "
 			"FI=%d | FR=%d | VXVC=%d | VXIMZ=%d | "
 			"VXZDZ=%d | VXIDI=%d | VXISI=%d | VXSNAN=%d | "
 			"XX=%d | ZX=%d | UX=%d | OX=%d | VX=%d | FEX=%d | FX=%d]\n",
-			FPSCR,
+			FPSCR.FPSCR,
 			FPSCR.RN,
 			FPSCR.NI, FPSCR.XE, FPSCR.ZE, FPSCR.UE, FPSCR.OE, FPSCR.VE,
 			FPSCR.VXCVI, FPSCR.VXSQRT, FPSCR.VXSOFT, FPSCR.FPRF,
@@ -769,14 +770,14 @@ public:
 			long reg_index;
 			reg.AfterFirst('[').RemoveLast().ToLong(&reg_index);
 			if (reg.StartsWith("GPR")) return wxString::Format("%016llx", GPR[reg_index]);
-			if (reg.StartsWith("FPR")) return wxString::Format("%016llx", FPR[reg_index]);
+			if (reg.StartsWith("FPR")) return wxString::Format("%016llx", (double)FPR[reg_index]);
 			if (reg.StartsWith("VPR")) return wxString::Format("%016llx%016llx", VPR[reg_index]._u64[1], VPR[reg_index]._u64[0]);
 		}
-		if (reg == "CR")	return wxString::Format("%08x", CR);
+		if (reg == "CR")	return wxString::Format("%08x", CR.CR);
 		if (reg == "LR")	return wxString::Format("%016llx", LR);
 		if (reg == "CTR")	return wxString::Format("%016llx", CTR);
-		if (reg == "XER")	return wxString::Format("%016llx", XER);
-		if (reg == "FPSCR")	return wxString::Format("%08x", FPSCR);
+		if (reg == "XER")	return wxString::Format("%016llx", XER.XER);
+		if (reg == "FPSCR")	return wxString::Format("%08x", FPSCR.FPSCR);
 
 		return wxEmptyString;
 	}

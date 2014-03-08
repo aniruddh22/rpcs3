@@ -76,7 +76,7 @@ CCellRescInternal* s_rescInternalInstance = new CCellRescInternal();
 // Extern Functions
 extern int cellGcmSetFlipMode(u32 mode);
 extern int cellGcmSetFlipHandler(u32 handler_addr);
-extern int cellGcmAddressToOffset(u32 address, mem32_t offset);
+extern int32_t cellGcmAddressToOffset(u64 address, mem32_t offset);
 extern int cellGcmSetDisplayBuffer(u32 id, u32 offset, u32 pitch, u32 width, u32 height);
 extern int cellGcmSetPrepareFlip(mem_ptr_t<CellGcmContextData> ctx, u32 id);
 extern int cellGcmSetSecondVFrequency(u32 freq);
@@ -609,9 +609,9 @@ int cellRescGetBufferSize(mem32_t colorBuffers, mem32_t vertexArray, mem32_t fra
 		fragmentUcodeSize = 0x300;
 	}
 
-	if(colorBuffers.GetAddr())   colorBuffers = colorBuffersSize;
-	if(vertexArray.GetAddr())    vertexArray = vertexArraySize;
-	if(fragmentShader.GetAddr()) fragmentShader = fragmentUcodeSize;
+	if(colorBuffers.IsGood())   colorBuffers = colorBuffersSize;
+	if(vertexArray.IsGood())    vertexArray = vertexArraySize;
+	if(fragmentShader.IsGood()) fragmentShader = fragmentUcodeSize;
 
 	return CELL_OK;
 }
@@ -713,7 +713,7 @@ int cellRescSetConvertAndFlip(mem_ptr_t<CellGcmContextData> cntxt, s32 idx)
 int cellRescSetWaitFlip()
 {
 	cellResc.Log("cellRescSetWaitFlip()");
-	GSLockCurrent lock(GS_LOCK_WAIT_FLIP);
+	GSLockCurrent lock(GS_LOCK_WAIT_FLIP); // could stall on exit
 
 	return CELL_OK;
 }
@@ -725,12 +725,12 @@ int cellRescSetBufferAddress(mem32_t colorBuffers, mem32_t vertexArray, mem32_t 
 
 	if(!s_rescInternalInstance->m_bInitialized)
 		return CELL_RESC_ERROR_NOT_INITIALIZED;
-	if(!colorBuffers.GetAddr() || !vertexArray.GetAddr() || !fragmentShader.GetAddr()) 
+	if(!colorBuffers.IsGood() || !vertexArray.IsGood() || !fragmentShader.IsGood()) 
 		return CELL_RESC_ERROR_BAD_ARGUMENT;
 	if(colorBuffers.GetAddr() % COLOR_BUFFER_ALIGNMENT ||
-	   vertexArray.GetAddr() % VERTEX_BUFFER_ALIGNMENT ||
-	   fragmentShader.GetAddr() % FRAGMENT_SHADER_ALIGNMENT)
-	    return CELL_RESC_ERROR_BAD_ALIGNMENT;
+		vertexArray.GetAddr() % VERTEX_BUFFER_ALIGNMENT ||
+		fragmentShader.GetAddr() % FRAGMENT_SHADER_ALIGNMENT)
+		return CELL_RESC_ERROR_BAD_ALIGNMENT;
 
 	s_rescInternalInstance->m_colorBuffersEA_addr  = colorBuffers.GetAddr();
 	s_rescInternalInstance->m_vertexArrayEA_addr   = vertexArray.GetAddr();

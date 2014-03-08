@@ -1,174 +1,196 @@
 #include "stdafx.h"
 #include "Emu/SysCalls/SysCalls.h"
 #include "Emu/SysCalls/SC_FUNC.h"
+#include "cellVpost.h"
 
 void cellVpost_init();
 Module cellVpost(0x0008, cellVpost_init);
 
-// Error Codes
-enum
+int cellVpostQueryAttr(const mem_ptr_t<CellVpostCfgParam> cfgParam, mem_ptr_t<CellVpostAttr> attr)
 {
-	CELL_VPOST_ERROR_Q_ARG_CFG_NULL					= 0x80610410,
-	CELL_VPOST_ERROR_Q_ARG_CFG_INVALID				= 0x80610411,
-	CELL_VPOST_ERROR_Q_ARG_ATTR_NULL				= 0x80610412,
-	CELL_VPOST_ERROR_O_ARG_CFG_NULL					= 0x80610440,
-	CELL_VPOST_ERROR_O_ARG_CFG_INVALID				= 0x80610441,
-	CELL_VPOST_ERROR_O_ARG_RSRC_NULL				= 0x80610442,
-	CELL_VPOST_ERROR_O_ARG_RSRC_INVALID				= 0x80610443,
-	CELL_VPOST_ERROR_O_ARG_HDL_NULL					= 0x80610444,
-	CELL_VPOST_ERROR_O_FATAL_QUERY_FAIL				= 0x80610460,
-	CELL_VPOST_ERROR_O_FATAL_CREATEMON_FAIL			= 0x80610461,
-	CELL_VPOST_ERROR_O_FATAL_INITSPURS_FAIL			= 0x80610462,
-	CELL_VPOST_ERROR_C_ARG_HDL_NULL					= 0x80610470,
-	CELL_VPOST_ERROR_C_ARG_HDL_INVALID				= 0x80610471,
-	CELL_VPOST_ERROR_C_FATAL_LOCKMON_FAIL			= 0x80610490,
-	CELL_VPOST_ERROR_C_FATAL_UNLOCKMON_FAIL			= 0x80610491,
-	CELL_VPOST_ERROR_C_FATAL_DESTROYMON_FAIL		= 0x80610492,
-	CELL_VPOST_ERROR_C_FATAL_FINSPURS_FAIL			= 0x80610463,
-	CELL_VPOST_ERROR_E_ARG_HDL_NULL					= 0x806104a0,
-	CELL_VPOST_ERROR_E_ARG_HDL_INVALID				= 0x806104a1,
-	CELL_VPOST_ERROR_E_ARG_INPICBUF_NULL			= 0x806104a2,
-	CELL_VPOST_ERROR_E_ARG_INPICBUF_INVALID			= 0x806104a3,
-	CELL_VPOST_ERROR_E_ARG_CTRL_NULL				= 0x806104a4,
-	CELL_VPOST_ERROR_E_ARG_CTRL_INVALID				= 0x806104a5,
-	CELL_VPOST_ERROR_E_ARG_OUTPICBUF_NULL			= 0x806104a6,
-	CELL_VPOST_ERROR_E_ARG_OUTPICBUF_INVALID		= 0x806104a7,
-	CELL_VPOST_ERROR_E_ARG_PICINFO_NULL				= 0x806104a8,
-	CELL_VPOST_ERROR_E_FATAL_LOCKMON_FAIL			= 0x806104c0,
-	CELL_VPOST_ERROR_E_FATAL_UNLOCKMON_FAIL			= 0x806104c1,
-	CELL_VPOST_ENT_ERROR_Q_ARG_ATTR_NULL			= 0x80618110,
-	CELL_VPOST_ENT_ERROR_O_ARG_RSRC_NULL			= 0x80618140,
-	CELL_VPOST_ENT_ERROR_O_ARG_RSRC_INVALID			= 0x80618141,
-	CELL_VPOST_ENT_ERROR_O_ARG_HDL_NULL				= 0x80618142,
-	CELL_VPOST_ENT_ERROR_O_FATAL_QUERY_FAIL			= 0x80618160,
-	CELL_VPOST_ENT_ERROR_O_FATAL_CSPUCORE_FAIL		= 0x80618161,
-	CELL_VPOST_ENT_ERROR_C_ARG_HDL_NULL				= 0x80618170,
-	CELL_VPOST_ENT_ERROR_C_ARG_HDL_INVALID			= 0x80618171,
-	CELL_VPOST_ENT_ERROR_C_FATAL_SNDCMD_FAIL		= 0x80618190,
-	CELL_VPOST_ENT_ERROR_C_FATAL_RCVRES_FAIL		= 0x80618191,
-	CELL_VPOST_ENT_ERROR_C_FATAL_DSPUCORE_FAIL		= 0x80618192,
-	CELL_VPOST_ENT_ERROR_E_ARG_HDL_NULL				= 0x806181a0,
-	CELL_VPOST_ENT_ERROR_E_ARG_HDL_INVALID			= 0x806181a1,
-	CELL_VPOST_ENT_ERROR_E_ARG_INPICBUF_NULL		= 0x806181a2,
-	CELL_VPOST_ENT_ERROR_E_ARG_INPICBUF_INVALID		= 0x806181a3,
-	CELL_VPOST_ENT_ERROR_E_ARG_INPICINFO_NULL		= 0x806181a4,
-	CELL_VPOST_ENT_ERROR_E_ARG_INPICINFO_INVALID	= 0x806181a5,
-	CELL_VPOST_ENT_ERROR_E_ARG_CTRL_NULL			= 0x806181a6,
-	CELL_VPOST_ENT_ERROR_E_ARG_CTRL_INVALID			= 0x806181a7,
-	CELL_VPOST_ENT_ERROR_E_ARG_COMB_INVALID			= 0x806181a8,
-	CELL_VPOST_ENT_ERROR_E_ARG_OUTPICBUF_NULL		= 0x806181a9,
-	CELL_VPOST_ENT_ERROR_E_ARG_OUTPICBUF_INVALID	= 0x806181aa,
-	CELL_VPOST_ENT_ERROR_E_ARG_OUTPICINFO_NULL		= 0x806181ab,
-	CELL_VPOST_ENT_ERROR_E_FATAL_SNDCMD_FAIL		= 0x806181c0,
-	CELL_VPOST_ENT_ERROR_E_FATAL_RCVRES_FAIL		= 0x806181c1,
-	CELL_VPOST_ENT_ERROR_E_FATAL_SPUCORE_FAIL		= 0x806181c2,
-	CELL_VPOST_IPC_ERROR_Q_ARG_ATTR_NULL			= 0x80618210,
-	CELL_VPOST_IPC_ERROR_O_ARG_RSRC_NULL			= 0x80618240,
-	CELL_VPOST_IPC_ERROR_O_ARG_RSRC_INVALID			= 0x80618241,
-	CELL_VPOST_IPC_ERROR_O_ARG_HDL_NULL				= 0x80618242,
-	CELL_VPOST_IPC_ERROR_O_FATAL_QUERY_FAIL			= 0x80618260,
-	CELL_VPOST_IPC_ERROR_O_FATAL_CSPUCORE_FAIL		= 0x80618261,
-	CELL_VPOST_IPC_ERROR_C_ARG_HDL_NULL				= 0x80618270,
-	CELL_VPOST_IPC_ERROR_C_ARG_HDL_INVALID			= 0x80618271,
-	CELL_VPOST_IPC_ERROR_C_FATAL_SNDCMD_FAIL		= 0x80618290,
-	CELL_VPOST_IPC_ERROR_C_FATAL_RCVRES_FAIL		= 0x80618291,
-	CELL_VPOST_IPC_ERROR_C_FATAL_DSPUCORE_FAIL		= 0x80618292,
-	CELL_VPOST_IPC_ERROR_E_ARG_HDL_NULL				= 0x806182a0,
-	CELL_VPOST_IPC_ERROR_E_ARG_HDL_INVALID			= 0x806182a1,
-	CELL_VPOST_IPC_ERROR_E_ARG_INPICBUF_NULL		= 0x806182a2,
-	CELL_VPOST_IPC_ERROR_E_ARG_INPICBUF_INVALID		= 0x806182a3,
-	CELL_VPOST_IPC_ERROR_E_ARG_INPICINFO_NULL		= 0x806182a4,
-	CELL_VPOST_IPC_ERROR_E_ARG_INPICINFO_INVALID	= 0x806182a5,
-	CELL_VPOST_IPC_ERROR_E_ARG_CTRL_NULL			= 0x806182a6,
-	CELL_VPOST_IPC_ERROR_E_ARG_CTRL_INVALID			= 0x806182a7,
-	CELL_VPOST_IPC_ERROR_E_ARG_COMB_INVALID			= 0x806182a8,
-	CELL_VPOST_IPC_ERROR_E_ARG_OUTPICBUF_NULL		= 0x806182a9,
-	CELL_VPOST_IPC_ERROR_E_ARG_OUTPICBUF_INVALID	= 0x806182aa,
-	CELL_VPOST_IPC_ERROR_E_ARG_OUTPICINFO_NULL		= 0x806182ab,
-	CELL_VPOST_IPC_ERROR_E_FATAL_SNDCMD_FAIL		= 0x806182c0,
-	CELL_VPOST_IPC_ERROR_E_FATAL_RCVRES_FAIL		= 0x806182c1,
-	CELL_VPOST_IPC_ERROR_E_FATAL_SPUCORE_FAIL		= 0x806182c2,
-	CELL_VPOST_VSC_ERROR_Q_ARG_ATTR_NULL			= 0x80618310,
-	CELL_VPOST_VSC_ERROR_O_ARG_RSRC_NULL			= 0x80618340,
-	CELL_VPOST_VSC_ERROR_O_ARG_RSRC_INVALID			= 0x80618341,
-	CELL_VPOST_VSC_ERROR_O_ARG_HDL_NULL				= 0x80618342,
-	CELL_VPOST_VSC_ERROR_O_FATAL_QUERY_FAIL			= 0x80618360,
-	CELL_VPOST_VSC_ERROR_O_FATAL_CSPUCORE_FAIL		= 0x80618361,
-	CELL_VPOST_VSC_ERROR_C_ARG_HDL_NULL				= 0x80618370,
-	CELL_VPOST_VSC_ERROR_C_ARG_HDL_INVALID			= 0x80618371,
-	CELL_VPOST_VSC_ERROR_C_FATAL_SNDCMD_FAIL		= 0x80618390,
-	CELL_VPOST_VSC_ERROR_C_FATAL_RCVRES_FAIL		= 0x80618391,
-	CELL_VPOST_VSC_ERROR_C_FATAL_DSPUCORE_FAIL		= 0x80618392,
-	CELL_VPOST_VSC_ERROR_E_ARG_HDL_NULL				= 0x806183a0,
-	CELL_VPOST_VSC_ERROR_E_ARG_HDL_INVALID			= 0x806183a1,
-	CELL_VPOST_VSC_ERROR_E_ARG_INPICBUF_NULL		= 0x806183a2,
-	CELL_VPOST_VSC_ERROR_E_ARG_INPICBUF_INVALID		= 0x806183a3,
-	CELL_VPOST_VSC_ERROR_E_ARG_INPICINFO_NULL		= 0x806183a4,
-	CELL_VPOST_VSC_ERROR_E_ARG_INPICINFO_INVALID	= 0x806183a5,
-	CELL_VPOST_VSC_ERROR_E_ARG_CTRL_NULL			= 0x806183a6,
-	CELL_VPOST_VSC_ERROR_E_ARG_CTRL_INVALID			= 0x806183a7,
-	CELL_VPOST_VSC_ERROR_E_ARG_COMB_INVALID			= 0x806183a8,
-	CELL_VPOST_VSC_ERROR_E_ARG_OUTPICBUF_NULL		= 0x806183a9,
-	CELL_VPOST_VSC_ERROR_E_ARG_OUTPICBUF_INVALID	= 0x806183aa,
-	CELL_VPOST_VSC_ERROR_E_ARG_OUTPICINFO_NULL		= 0x806183ab,
-	CELL_VPOST_VSC_ERROR_E_FATAL_SNDCMD_FAIL		= 0x806183c0,
-	CELL_VPOST_VSC_ERROR_E_FATAL_RCVRES_FAIL		= 0x806183c1,
-	CELL_VPOST_VSC_ERROR_E_FATAL_SPUCORE_FAIL		= 0x806183c2,
-	CELL_VPOST_CSC_ERROR_Q_ARG_ATTR_NULL			= 0x80618410,
-	CELL_VPOST_CSC_ERROR_O_ARG_RSRC_NULL			= 0x80618440,
-	CELL_VPOST_CSC_ERROR_O_ARG_RSRC_INVALID			= 0x80618441,
-	CELL_VPOST_CSC_ERROR_O_ARG_HDL_NULL				= 0x80618442,
-	CELL_VPOST_CSC_ERROR_O_FATAL_QUERY_FAIL			= 0x80618460,
-	CELL_VPOST_CSC_ERROR_O_FATAL_CSPUCORE_FAIL		= 0x80618461,
-	CELL_VPOST_CSC_ERROR_C_ARG_HDL_NULL				= 0x80618470,
-	CELL_VPOST_CSC_ERROR_C_ARG_HDL_INVALID			= 0x80618471,
-	CELL_VPOST_CSC_ERROR_C_FATAL_SNDCMD_FAIL		= 0x80618490,
-	CELL_VPOST_CSC_ERROR_C_FATAL_RCVRES_FAIL		= 0x80618491,
-	CELL_VPOST_CSC_ERROR_C_FATAL_DSPUCORE_FAIL		= 0x80618492,
-	CELL_VPOST_CSC_ERROR_E_ARG_HDL_NULL				= 0x806184a0,
-	CELL_VPOST_CSC_ERROR_E_ARG_HDL_INVALID			= 0x806184a1,
-	CELL_VPOST_CSC_ERROR_E_ARG_INPICBUF_NULL		= 0x806184a2,
-	CELL_VPOST_CSC_ERROR_E_ARG_INPICBUF_INVALID		= 0x806184a3,
-	CELL_VPOST_CSC_ERROR_E_ARG_INPICINFO_NULL		= 0x806184a4,
-	CELL_VPOST_CSC_ERROR_E_ARG_INPICINFO_INVALID	= 0x806184a5,
-	CELL_VPOST_CSC_ERROR_E_ARG_CTRL_NULL			= 0x806184a6,
-	CELL_VPOST_CSC_ERROR_E_ARG_CTRL_INVALID			= 0x806184a7,
-	CELL_VPOST_CSC_ERROR_E_ARG_COMB_INVALID			= 0x806184a8,
-	CELL_VPOST_CSC_ERROR_E_ARG_OUTPICBUF_NULL		= 0x806184a9,
-	CELL_VPOST_CSC_ERROR_E_ARG_OUTPICBUF_INVALID	= 0x806184aa,
-	CELL_VPOST_CSC_ERROR_E_ARG_OUTPICINFO_NULL		= 0x806184ab,
-	CELL_VPOST_CSC_ERROR_E_FATAL_SNDCMD_FAIL		= 0x806184c0,
-	CELL_VPOST_CSC_ERROR_E_FATAL_RCVRES_FAIL		= 0x806184c1,
-	CELL_VPOST_CSC_ERROR_E_FATAL_SPUCORE_FAIL		= 0x806184c2,
-};
+	cellVpost.Warning("cellVpostQueryAttr(cfgParam_addr=0x%x, attr_addr=0x%x)", cfgParam.GetAddr(), attr.GetAddr());
 
-int cellVpostQueryAttr()
-{
-	UNIMPLEMENTED_FUNC(cellVpost);
+	if (!cfgParam.IsGood()) return CELL_VPOST_ERROR_Q_ARG_CFG_NULL;
+	if (!attr.IsGood()) return CELL_VPOST_ERROR_Q_ARG_ATTR_NULL;
+
+	// TODO: check cfgParam and output values
+
+	attr->delay = 0;
+	attr->memSize = 4 * 1024 * 1024;
+	attr->vpostVerLower = 0x280000; // from dmux
+	attr->vpostVerUpper = 0x260000;
+
 	return CELL_OK;
 }
 
-int cellVpostOpen()
+u32 vpostOpen(VpostInstance* data)
 {
-	UNIMPLEMENTED_FUNC(cellVpost);
+	u32 id = cellVpost.GetNewId(data);
+
+	ConLog.Write("*** Vpost instance created (to_rgba=%d): id = %d", data->to_rgba, id);
+
+	return id;
+}
+
+int cellVpostOpen(const mem_ptr_t<CellVpostCfgParam> cfgParam, const mem_ptr_t<CellVpostResource> resource, mem32_t handle)
+{
+	cellVpost.Warning("cellVpostOpen(cfgParam_addr=0x%x, resource_addr=0x%x, handle_addr=0x%x)",
+		cfgParam.GetAddr(), resource.GetAddr(), handle.GetAddr());
+
+	if (!cfgParam.IsGood()) return CELL_VPOST_ERROR_O_ARG_CFG_NULL;
+	if (!resource.IsGood()) return CELL_VPOST_ERROR_O_ARG_RSRC_NULL;
+	if (!handle.IsGood()) return CELL_VPOST_ERROR_O_ARG_HDL_NULL;
+
+	// TODO: check values
+	handle = vpostOpen(new VpostInstance(cfgParam->outPicFmt == CELL_VPOST_PIC_FMT_OUT_RGBA_ILV));
 	return CELL_OK;
 }
 
-int cellVpostOpenEx()
+int cellVpostOpenEx(const mem_ptr_t<CellVpostCfgParam> cfgParam, const mem_ptr_t<CellVpostResourceEx> resource, mem32_t handle)
 {
-	UNIMPLEMENTED_FUNC(cellVpost);
+	cellVpost.Warning("cellVpostOpenEx(cfgParam_addr=0x%x, resource_addr=0x%x, handle_addr=0x%x)",
+		cfgParam.GetAddr(), resource.GetAddr(), handle.GetAddr());
+
+	if (!cfgParam.IsGood()) return CELL_VPOST_ERROR_O_ARG_CFG_NULL;
+	if (!resource.IsGood()) return CELL_VPOST_ERROR_O_ARG_RSRC_NULL;
+	if (!handle.IsGood()) return CELL_VPOST_ERROR_O_ARG_HDL_NULL;
+
+	// TODO: check values
+	handle = vpostOpen(new VpostInstance(cfgParam->outPicFmt == CELL_VPOST_PIC_FMT_OUT_RGBA_ILV));
 	return CELL_OK;
 }
 
-int cellVpostClose()
+int cellVpostClose(u32 handle)
 {
-	UNIMPLEMENTED_FUNC(cellVpost);
+	cellVpost.Warning("cellVpostClose(handle=0x%x)", handle);
+
+	VpostInstance* vpost;
+	if (!Emu.GetIdManager().GetIDData(handle, vpost))
+	{
+		return CELL_VPOST_ERROR_C_ARG_HDL_INVALID;
+	}
+
+	Emu.GetIdManager().RemoveID(handle);	
 	return CELL_OK;
 }
 
-int cellVpostExec()
+int cellVpostExec(u32 handle, const u32 inPicBuff_addr, const mem_ptr_t<CellVpostCtrlParam> ctrlParam,
+				  u32 outPicBuff_addr, mem_ptr_t<CellVpostPictureInfo> picInfo)
 {
-	UNIMPLEMENTED_FUNC(cellVpost);
+	cellVpost.Log("cellVpostExec(handle=0x%x, inPicBuff_addr=0x%x, ctrlParam_addr=0x%x, outPicBuff_addr=0x%x, picInfo_addr=0x%x)",
+		handle, inPicBuff_addr, ctrlParam.GetAddr(), outPicBuff_addr, picInfo.GetAddr());
+
+	VpostInstance* vpost;
+	if (!Emu.GetIdManager().GetIDData(handle, vpost))
+	{
+		return CELL_VPOST_ERROR_E_ARG_HDL_INVALID;
+	}
+
+	if (!ctrlParam.IsGood())
+	{
+		return CELL_VPOST_ERROR_E_ARG_CTRL_INVALID;
+	}
+
+	u32 w = ctrlParam->inWidth;
+	u32 h = ctrlParam->inHeight;
+
+	if (!Memory.IsGoodAddr(inPicBuff_addr, w*h*3/2))
+	{
+		return CELL_VPOST_ERROR_E_ARG_INPICBUF_INVALID;
+	}
+
+	if (!Memory.IsGoodAddr(outPicBuff_addr, w*h*4))
+	{
+		return CELL_VPOST_ERROR_E_ARG_OUTPICBUF_INVALID;
+	}
+
+	if (!picInfo.IsGood())
+	{
+		return CELL_VPOST_ERROR_E_ARG_PICINFO_NULL;
+	}
+
+	ctrlParam->inWindow; // ignored
+	ctrlParam->outWindow; // ignored
+	ctrlParam->execType; // ignored
+	ctrlParam->scalerType; // ignored
+	ctrlParam->ipcType; // ignored
+
+	picInfo->inWidth = ctrlParam->inWidth; // copy
+	picInfo->inHeight = ctrlParam->inHeight; // copy
+	picInfo->inDepth = CELL_VPOST_PIC_DEPTH_8; // fixed
+	picInfo->inScanType = CELL_VPOST_SCAN_TYPE_P; // TODO
+	picInfo->inPicFmt = CELL_VPOST_PIC_FMT_IN_YUV420_PLANAR; // fixed
+	picInfo->inChromaPosType = ctrlParam->inChromaPosType; // copy
+	picInfo->inPicStruct = CELL_VPOST_PIC_STRUCT_PFRM; // TODO
+	picInfo->inQuantRange = ctrlParam->inQuantRange; // copy
+	picInfo->inColorMatrix = ctrlParam->inColorMatrix; // copy
+
+	picInfo->outWidth = picInfo->inWidth; // TODO (resampling)
+	picInfo->outHeight = picInfo->inHeight; // TODO
+	picInfo->outDepth = CELL_VPOST_PIC_DEPTH_8; // fixed
+	picInfo->outScanType = CELL_VPOST_SCAN_TYPE_P; // TODO
+	picInfo->outPicFmt = CELL_VPOST_PIC_FMT_OUT_RGBA_ILV; // TODO
+	picInfo->outChromaPosType = ctrlParam->inChromaPosType; // ???
+	picInfo->outPicStruct = picInfo->inPicStruct; // ???
+	picInfo->outQuantRange = ctrlParam->inQuantRange; // ???
+	picInfo->outColorMatrix = ctrlParam->inColorMatrix; // ???
+
+	picInfo->userData = ctrlParam->userData; // copy
+	picInfo->reserved1 = 0;
+	picInfo->reserved2 = 0;
+
+	u8* pY = (u8*)malloc(w*h); // color planes
+	u8* pU = (u8*)malloc(w*h/4);
+	u8* pV = (u8*)malloc(w*h/4);
+	u32* res = (u32*)malloc(w*h*4); // RGBA interleaved output
+	const u8 alpha = ctrlParam->outAlpha;
+
+	if (!Memory.CopyToReal(pY, inPicBuff_addr, w*h))
+	{
+		cellVpost.Error("cellVpostExec: data copying failed(pY)");
+		Emu.Pause();
+	}
+
+	if (!Memory.CopyToReal(pU, inPicBuff_addr + w*h, w*h/4))
+	{
+		cellVpost.Error("cellVpostExec: data copying failed(pU)");
+		Emu.Pause();
+	}
+
+	if (!Memory.CopyToReal(pV, inPicBuff_addr + w*h + w*h/4, w*h/4))
+	{
+		cellVpost.Error("cellVpostExec: data copying failed(pV)");
+		Emu.Pause();
+	}
+
+	for (u32 i = 0; i < h; i++) for (u32 j = 0; j < w; j++)
+	{
+		float Cr = pV[(i/2)*(w/2)+j/2] - 128;
+		float Cb = pU[(i/2)*(w/2)+j/2] - 128;
+		float Y = pY[i*w+j];
+
+		int R = Y + 1.5701f * Cr;
+		if (R < 0) R = 0;
+		if (R > 255) R = 255;
+		int G = Y - 0.1870f * Cb - 0.4664f * Cr;
+		if (G < 0) G = 0;
+		if (G > 255) G = 255;
+		int B = Y - 1.8556f * Cb;
+		if (B < 0) B = 0;
+		if (B > 255) B = 255;
+		res[i*w+j] = ((u32)alpha << 24) | (B << 16) | (G << 8) | (R);
+	}
+
+	if (!Memory.CopyFromReal(outPicBuff_addr, res, w*h*4))
+	{
+		cellVpost.Error("cellVpostExec: data copying failed(result)");
+		Emu.Pause();
+	}
+
+	free(pY);
+	free(pU);
+	free(pV);
+	free(res);
 	return CELL_OK;
 }
 

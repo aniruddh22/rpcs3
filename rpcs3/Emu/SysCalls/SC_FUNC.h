@@ -1,20 +1,42 @@
 #pragma once
+#include "Modules.h"
 
 #define RESULT(x) SC_ARGS_1 = (x)
 
-template<bool is_fp, bool is_ptr, typename T>
+template<bool is_in_sp, bool is_fp, bool is_ptr, typename T, int i>
 struct get_arg;
 
-template<typename T>
-struct get_arg<false, false, T>	{ static __forceinline T func(PPUThread& CPU, int i) { return (T&)CPU.GPR[i + 2]; } };
+template<typename T, int i>
+struct get_arg<false, false, false, T, i> // not fp, not ptr, 1..8
+{
+	static __forceinline T func(PPUThread& CPU) { return (T&)CPU.GPR[i + 2]; }
+};
 
-template<bool is_fp, typename T>
-struct get_arg<is_fp, true, T>	{ static __forceinline T func(PPUThread& CPU, int i) { return CPU.GPR[i + 2] ? (T)&Memory[CPU.GPR[i + 2]] : nullptr; } };
+template<bool is_fp, typename T, int i>
+struct get_arg<false, is_fp, true, T, i> // ptr, 1..8
+{
+	static __forceinline T func(PPUThread& CPU) { return CPU.GPR[i + 2] ? (T)&Memory[CPU.GPR[i + 2]] : nullptr; }
+};
 
-template<typename T>
-struct get_arg<true, false, T>	{ static __forceinline T func(PPUThread& CPU, int i) { return CPU.FPR[i]; } };
+template<bool is_in_sp, typename T, int i>
+struct get_arg<is_in_sp, true, false, T, i> // fp, 1..12
+{
+	static __forceinline T func(PPUThread& CPU) { return CPU.FPR[i]; }
+};
 
-#define ARG(n) get_arg<std::is_floating_point<T##n>::value, std::is_pointer<T##n>::value, T##n>::func(CPU, n)
+template<typename T, int i>
+struct get_arg<true, false, false, T, i> // not fp, not ptr, 9..12
+{
+	static __forceinline T func(PPUThread& CPU) { u64 res = Memory.Read64(CPU.GPR[1] + 0x70 + 0x8 * (i - 9)); return (T&)res; }
+};
+
+template<bool is_fp, typename T, int i>
+struct get_arg<true, is_fp, true, T, i> // ptr, 9..12
+{
+	static __forceinline T func(PPUThread& CPU) { u64 addr = Memory.Read64(CPU.GPR[1] + 0x70 + 0x8 * (i - 9)); return addr ? (T)&Memory[addr] : nullptr; }
+};
+
+#define ARG(n) get_arg<((n) > 8), std::is_floating_point<T##n>::value, std::is_pointer<T##n>::value, T##n, n>::func(CPU)
 
 template<typename TR>
 class binder_func_0 : public func_caller
@@ -302,6 +324,8 @@ public:
 	virtual void operator()() { declCPU(); m_call(ARG(1), ARG(2), ARG(3), ARG(4), ARG(5), ARG(6), ARG(7), ARG(8), ARG(9), ARG(10), ARG(11), ARG(12)); }
 };
 
+#undef ARG
+
 template<typename TR>
 func_caller* bind_func(TR (*call)())
 {
@@ -379,5 +403,3 @@ func_caller* bind_func(TR (*call)(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, 
 {
 	return new binder_func_12<TR, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(call);
 }
-
-#undef ARG(n)

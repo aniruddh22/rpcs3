@@ -1,7 +1,5 @@
 #pragma once
-
 #include "Gui/MainFrame.h"
-#include "Gui/Debugger.h"
 
 template<typename T> T min(const T a, const T b) { return a < b ? a : b; }
 template<typename T> T max(const T a, const T b) { return a > b ? a : b; }
@@ -55,9 +53,9 @@ class Rpcs3App : public wxApp
 {
 public:
 	MainFrame* m_MainFrame;
-	DebuggerPanel* m_debugger_frame;
 
-	virtual bool OnInit();
+	virtual bool OnInit();       // RPCS3's entry point
+	virtual void OnArguments();  // Handle arguments: Rpcs3App::argc, Rpcs3App::argv
 	virtual void Exit();
 
 	void SendDbgCommand(DbgCommand id, CPUThread* thr=nullptr);

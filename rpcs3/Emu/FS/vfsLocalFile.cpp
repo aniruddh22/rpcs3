@@ -27,36 +27,56 @@ static const wxSeekMode vfs2wx_seek(vfsSeekMode mode)
 	return wxFromStart;
 }
 
-vfsLocalFile::vfsLocalFile() : vfsFileBase()
+vfsLocalFile::vfsLocalFile(vfsDevice* device) : vfsFileBase(device)
 {
-}
-
-vfsLocalFile::vfsLocalFile(const wxString path, vfsOpenMode mode) : vfsFileBase()
-{
-	Open(path, mode);
-}
-
-vfsDevice* vfsLocalFile::GetNew()
-{
-	return new vfsLocalFile();
 }
 
 bool vfsLocalFile::Open(const wxString& path, vfsOpenMode mode)
 {
 	Close();
 
-	if(mode == vfsRead && !m_file.Access(vfsDevice::GetWinPath(GetLocalPath(), path), vfs2wx_mode(mode))) return false;
+	if(m_device)
+	{
+		if(!m_file.Access(vfsDevice::GetWinPath(m_device->GetLocalPath(), path), vfs2wx_mode(mode))) return false;
 
-	return m_file.Open(vfsDevice::GetWinPath(GetLocalPath(), path), vfs2wx_mode(mode)) &&
-		vfsFileBase::Open(vfsDevice::GetPs3Path(GetPs3Path(), path), mode);
+		return m_file.Open(vfsDevice::GetWinPath(m_device->GetLocalPath(), path), vfs2wx_mode(mode)) &&
+			vfsFileBase::Open(vfsDevice::GetPs3Path(m_device->GetPs3Path(), path), mode);
+	}
+	else
+	{
+		if(!m_file.Access(path, vfs2wx_mode(mode))) return false;
+
+		return m_file.Open(path, vfs2wx_mode(mode)) && vfsFileBase::Open(path, mode);
+	}
 }
 
 bool vfsLocalFile::Create(const wxString& path)
 {
-	if(wxFileExists(path)) return false;
+	ConLog.Warning("vfsLocalFile::Create('%s')", path.wx_str());
+	for(uint p=1; p < path.Len() && path[p] != '\0' ; p++)
+	{
+		for(; p < path.Len() && path[p] != '\0'; p++)
+			if(path[p] == '\\') break;
 
-	wxFile f;
-	return f.Create(path);
+		if(p == path.Len() || path[p] == '\0')
+			break;
+
+		const wxString& dir = path(0, p);
+		if(!wxDirExists(dir))
+		{
+			ConLog.Write("create dir: %s", dir.wx_str());
+			wxMkdir(dir);
+		}
+	}
+
+	//create file
+	if(path(path.Len() - 1, 1) != '\\' && !wxFileExists(path))
+	{
+		wxFile f;
+		return f.Create(path);
+	}
+
+	return true;
 }
 
 bool vfsLocalFile::Close()

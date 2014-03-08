@@ -1,8 +1,27 @@
 #pragma once
 #include "Emu/Memory/MemoryBlock.h"
 #include "Emu/CPU/CPUDecoder.h"
+#include "Utilities/SMutex.h"
 
-enum CPUThreadType
+struct reservation_struct
+{
+	SMutex mutex; // mutex for updating reservation_owner and data
+	volatile u32 owner; // id of thread that got reservation
+	volatile u32 addr;
+	volatile u32 size;
+	volatile u32 data32;
+	volatile u64 data64;
+	// atm, PPU can't break SPU MFC reservation correctly
+
+	__forceinline void clear()
+	{
+		owner = 0;
+	}
+};
+
+extern reservation_struct reservation;
+
+enum CPUThreadType :unsigned char
 {
 	CPU_THREAD_PPU,
 	CPU_THREAD_SPU,
@@ -32,14 +51,13 @@ protected:
 	CPUThreadType m_type;
 	bool m_joinable;
 	bool m_joining;
-	bool m_free_data;
 	bool m_is_step;
 
 	u64 m_stack_addr;
 	u64 m_stack_size;
 	u64 m_stack_point;
 
-	u32 m_exit_status;
+	u64 m_exit_status;
 
 	CPUDecoder* m_dec;
 
@@ -62,20 +80,20 @@ public:
 	void SetName(const std::string& name);
 	void SetPrio(const u64 prio) { m_prio = prio; }
 	void SetOffset(const u64 offset) { m_offset = offset; }
-	void SetExitStatus(const u32 status) { m_exit_status = status; }
+	void SetExitStatus(const u64 status) { m_exit_status = status; }
 
 	u64 GetOffset() const { return m_offset; }
-	u32 GetExitStatus() const { return m_exit_status; }
+	u64 GetExitStatus() const { return m_exit_status; }
 	u64 GetPrio() const { return m_prio; }
 
-	std::string GetName() const { return m_name; }
+	std::string GetName() const { return NamedThreadBase::GetThreadName(); }
 	wxString GetFName() const
 	{
 		return 
 			wxString::Format("%s[%d] Thread%s", 
-				GetTypeString().mb_str(),
+				GetTypeString().wx_str(),
 				m_id,
-				(GetName().empty() ? "" : std::string(" (" + GetName() + ")").c_str())
+				wxString(GetName().empty() ? "" : wxString::Format(" (%s)", + wxString(GetName()).wx_str())).wx_str()
 			);
 	}
 
@@ -96,7 +114,8 @@ public:
 
 	virtual std::string GetThreadName() const
 	{
-		return (GetFName() + wxString::Format("[0x%08llx]", PC)).mb_str();
+		wxString temp = (GetFName() + wxString::Format("[0x%08llx]", PC));
+		return std::string(temp.mb_str());
 	}
 
 public:
@@ -110,7 +129,7 @@ protected:
 	CPUThread(CPUThreadType type);
 
 public:
-	~CPUThread();
+	virtual ~CPUThread();
 
 	u32 m_wait_thread_id;
 
@@ -214,6 +233,8 @@ public:
 	{
 		return pc + 4;
 	}
+
+	s64 ExecAsCallback(u64 pc, bool wait, u64 a1 = 0, u64 a2 = 0, u64 a3 = 0, u64 a4 = 0);
 
 protected:
 	virtual void DoReset()=0;

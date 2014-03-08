@@ -169,8 +169,8 @@ bool ELF64Loader::LoadShdrInfo(s64 offset)
 
 	if(ehdr.e_shstrndx >= shdr_arr.GetCount())
 	{
-		ConLog.Error("LoadShdr64 error: shstrndx too big!");
-		return false;
+		ConLog.Warning("LoadShdr64 error: shstrndx too big!");
+		return true;
 	}
 
 	for(u32 i=0; i<shdr_arr.GetCount(); ++i)
@@ -240,12 +240,13 @@ bool ELF64Loader::LoadPhdrData(u64 offset)
 			case 0x00000001: //LOAD
 				if(phdr_arr[i].p_memsz)
 				{
-					Memory.MainMem.Alloc(offset + phdr_arr[i].p_vaddr, phdr_arr[i].p_memsz);
+					Memory.MainMem.AllocFixed(offset + phdr_arr[i].p_vaddr, phdr_arr[i].p_memsz);
 
 					if(phdr_arr[i].p_filesz)
 					{
 						elf64_f.Seek(phdr_arr[i].p_offset);
 						elf64_f.Read(&Memory[offset + phdr_arr[i].p_vaddr], phdr_arr[i].p_filesz);
+						StaticAnalyse(&Memory[offset + phdr_arr[i].p_vaddr], phdr_arr[i].p_filesz);
 					}
 				}
 			break;
@@ -336,14 +337,14 @@ bool ELF64Loader::LoadPhdrData(u64 offset)
 						stub.s_text = re(stub.s_text);
 
 						const wxString& module_name = Memory.ReadString(stub.s_modulename);
-						Module* module = GetModuleByName(module_name);
+						Module* module = GetModuleByName(module_name.ToStdString());
 						if(module)
 						{
 							//module->SetLoaded();
 						}
 						else
 						{
-							ConLog.Warning("Unknown module '%s'", module_name.mb_str());
+							ConLog.Warning("Unknown module '%s'", module_name.wx_str());
 						}
 
 #ifdef LOADER_DEBUG
@@ -353,13 +354,13 @@ bool ELF64Loader::LoadPhdrData(u64 offset)
 						ConLog.Write("*** unk0: 0x%x", stub.s_unk0);
 						ConLog.Write("*** unk1: 0x%x", stub.s_unk1);
 						ConLog.Write("*** imports: %d", stub.s_imports);
-						ConLog.Write("*** module name: %s [0x%x]", module_name.mb_str(), stub.s_modulename);
+						ConLog.Write("*** module name: %s [0x%x]", module_name.wx_str(), stub.s_modulename);
 						ConLog.Write("*** nid: 0x%x", stub.s_nid);
 						ConLog.Write("*** text: 0x%x", stub.s_text);
 #endif
 						static const u32 section = 4 * 3;
-						u64 tbl = Memory.MainMem.Alloc(stub.s_imports * 4 * 2);
-						u64 dst = Memory.MainMem.Alloc(stub.s_imports * section);
+						u64 tbl = Memory.MainMem.AllocAlign(stub.s_imports * 4 * 2);
+						u64 dst = Memory.MainMem.AllocAlign(stub.s_imports * section);
 
 						for(u32 i=0; i<stub.s_imports; ++i)
 						{
@@ -370,7 +371,7 @@ bool ELF64Loader::LoadPhdrData(u64 offset)
 							{
 								if(!module->Load(nid))
 								{
-									ConLog.Warning("Unknown function 0x%08x in '%s' module", nid, module_name.mb_str());
+									ConLog.Warning("Unknown function 0x%08x in '%s' module", nid, module_name.wx_str());
 									SysCalls::DoFunc(nid);
 								}
 							}
@@ -419,7 +420,7 @@ bool ELF64Loader::LoadShdrData(u64 offset)
 			const wxString& name = shdr_name_arr[i];
 
 #ifdef LOADER_DEBUG
-			ConLog.Write("Name: %s", shdr_name_arr[i]);
+			ConLog.Write("Name: %s", shdr_name_arr[i].wx_str());
 #endif
 		}
 
@@ -436,7 +437,7 @@ bool ELF64Loader::LoadShdrData(u64 offset)
 
 		if(size == 0 || !Memory.IsGoodAddr(offset + addr, size)) continue;
 
-		if(shdr.sh_addr < min_addr)
+		if(shdr.sh_addr && shdr.sh_addr < min_addr)
 		{
 			min_addr = shdr.sh_addr;
 		}
@@ -455,18 +456,13 @@ bool ELF64Loader::LoadShdrData(u64 offset)
 		switch(shdr.sh_type)
 		{
 		case SHT_NOBITS:
-			memset(&Memory[offset + addr], 0, size);
+			//ConLog.Warning("SHT_NOBITS: addr=0x%llx, size=0x%llx", offset + addr, size);
+			//memset(&Memory[offset + addr], 0, size);
 		break;
 
 		case SHT_PROGBITS:
-			/*
-			elf64_f.Seek(shdr.sh_offset);
-			elf64_f.Read(&Memory[addr], shdr.sh_size);
-			*/
-		break;
-
-		case SHT_RELA:
-			ConLog.Warning("ELF64: RELA");
+			//elf64_f.Seek(shdr.sh_offset);
+			//elf64_f.Read(&Memory[offset + addr], shdr.sh_size);
 		break;
 		}
 	}

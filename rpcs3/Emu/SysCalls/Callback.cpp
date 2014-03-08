@@ -9,7 +9,9 @@ Callback::Callback(u32 slot, u64 addr)
 	, a1(0)
 	, a2(0)
 	, a3(0)
+	, a4(0)
 	, m_has_data(false)
+	, m_name("Callback")
 {
 }
 
@@ -38,11 +40,12 @@ bool Callback::HasData() const
 	return m_has_data;
 }
 
-void Callback::Handle(u64 _a1, u64 _a2, u64 _a3)
+void Callback::Handle(u64 _a1, u64 _a2, u64 _a3, u64 _a4)
 {
 	a1 = _a1;
 	a2 = _a2;
 	a3 = _a3;
+	a4 = _a4;
 	m_has_data = true;
 }
 
@@ -50,22 +53,69 @@ void Callback::Branch(bool wait)
 {
 	m_has_data = false;
 
-	CPUThread& new_thread = Emu.GetCPU().AddThread(CPU_THREAD_PPU);
+	static std::mutex cb_mutex;
 
-	new_thread.SetEntry(m_addr);
-	new_thread.SetPrio(1001);
-	new_thread.SetStackSize(0x10000);
-	new_thread.SetName("Callback");
+	CPUThread& thr = Emu.GetCallbackThread();
 
-	new_thread.SetArg(0, a1);
-	new_thread.SetArg(1, a2);
-	new_thread.SetArg(2, a3);
-	new_thread.Run();
+again:
 
-	new_thread.Exec();
+	while (thr.IsAlive())
+	{
+		if (Emu.IsStopped())
+		{
+			ConLog.Warning("Callback::Branch() aborted");
+			return;
+		}
+		Sleep(1);
+	}
 
-	if(wait)
-		GetCurrentPPCThread()->Wait(new_thread);
+	std::lock_guard<std::mutex> lock(cb_mutex);
+
+	if (thr.IsAlive())
+	{
+		goto again;
+	}
+	if (Emu.IsStopped())
+	{
+		ConLog.Warning("Callback::Branch() aborted");
+		return;
+	}
+
+	thr.Stop();
+	thr.Reset();
+
+	thr.SetEntry(m_addr);
+	thr.SetPrio(1001);
+	thr.SetStackSize(0x10000);
+	thr.SetName(m_name);
+
+	thr.SetArg(0, a1);
+	thr.SetArg(1, a2);
+	thr.SetArg(2, a3);
+	thr.SetArg(3, a4);
+	thr.Run();
+
+	thr.Exec();
+
+	if (!wait)
+	{
+		return;
+	}
+
+	while (thr.IsAlive())
+	{
+		if (Emu.IsStopped())
+		{
+			ConLog.Warning("Callback::Branch(true) aborted (end)");
+			return;
+		}
+		Sleep(1);
+	}
+}
+
+void Callback::SetName(const std::string& name)
+{
+	m_name = name;
 }
 
 Callback::operator bool() const

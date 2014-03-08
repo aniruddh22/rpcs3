@@ -2,7 +2,7 @@
 #include "Emu/FS/vfsFileBase.h"
 
 #ifdef _DEBUG	
-	#define LOADER_DEBUG
+	//#define LOADER_DEBUG
 #endif
 
 enum Elf_Machine
@@ -197,7 +197,7 @@ public:
 
 	u32 GetEntry() { return entry; }
 	u32 GetMinAddr() { return min_addr; }
-	u32 GetMaxAddr() { return min_addr; }
+	u32 GetMaxAddr() { return max_addr; }
 };
 
 class Loader : public LoaderBase

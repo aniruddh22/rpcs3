@@ -2,8 +2,10 @@
 #include "rpcs3.h"
 #include "Ini.h"
 #include "Emu/System.h"
+
+#ifdef _WIN32
 #include <wx/msw/wrapwin.h>
-#include "Gui/CompilerELF.h"
+#endif
 
 const wxEventType wxEVT_DBG_COMMAND = wxNewEventType();
 
@@ -22,17 +24,29 @@ bool Rpcs3App::OnInit()
 	SetTopWindow(m_MainFrame);
 	Emu.Init();
 
-	// (new CompilerELF(m_MainFrame))->Show();
-	m_debugger_frame = new DebuggerPanel(m_MainFrame);
-	ConLogFrame = new LogFrame(m_MainFrame);
-
-	m_MainFrame->AddPane(ConLogFrame, "Log", wxAUI_DOCK_BOTTOM);
-	m_MainFrame->AddPane(m_debugger_frame, "Debugger", wxAUI_DOCK_RIGHT);
-	//ConLogFrame->Show();
 	m_MainFrame->Show();
-
 	m_MainFrame->DoSettings(true);
+
+	OnArguments();
+
 	return true;
+}
+
+void Rpcs3App::OnArguments()
+{
+	// Usage:
+	//   rpcs3-*.exe               Initializes RPCS3
+	//   rpcs3-*.exe [(S)ELF]      Initializes RPCS3, then loads and runs the specified (S)ELF file.
+
+	if (Rpcs3App::argc > 1)
+	{
+		// Force this value to be true
+		Ini.HLEExitOnStop.SetValue(true);
+
+		Emu.SetPath(argv[1]);
+		Emu.Load();
+		Emu.Run();
+	}
 }
 
 void Rpcs3App::Exit()

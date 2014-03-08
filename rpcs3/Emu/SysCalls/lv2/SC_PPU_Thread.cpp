@@ -10,38 +10,48 @@ enum
 	SYS_PPU_THREAD_DONE_INIT,
 };
 
-int sys_ppu_thread_exit(int errorcode)
+void sys_ppu_thread_exit(u64 errorcode)
 {
-	if(errorcode == 0)
-	{
-		sysPrxForUser.Log("sys_ppu_thread_exit(errorcode=%d)", errorcode);
-	}
-	else
-	{
-		sysPrxForUser.Warning("sys_ppu_thread_exit(errorcode=%d)", errorcode);
-	}
+	sysPrxForUser.Log("sys_ppu_thread_exit(0x%llx)", errorcode);
 	
 	PPUThread& thr = GetCurrentPPUThread();
-	thr.SetExitStatus(errorcode);
-	Emu.GetCPU().RemoveThread(thr.GetId());
+	u32 tid = thr.GetId();
 
-	return CELL_OK;
+	if (thr.owned_mutexes)
+	{
+		ConLog.Error("Owned mutexes found (%d)", thr.owned_mutexes);
+		thr.owned_mutexes = 0;
+	}
+
+	thr.SetExitStatus(errorcode);
+	thr.Stop();
 }
 
 int sys_ppu_thread_yield()
 {
-	sysPrxForUser.Log("sys_ppu_thread_yield()");	
+	sysPrxForUser.Log("sys_ppu_thread_yield()");
+	Sleep(1);
 	return CELL_OK;
 }
 
-int sys_ppu_thread_join(u32 thread_id, u32 vptr_addr)
+int sys_ppu_thread_join(u32 thread_id, mem64_t vptr)
 {
-	sysPrxForUser.Warning("sys_ppu_thread_join(thread_id=%d, vptr_addr=0x%x)", thread_id, vptr_addr);
+	sysPrxForUser.Warning("sys_ppu_thread_join(thread_id=%d, vptr_addr=0x%x)", thread_id, vptr.GetAddr());
 
 	CPUThread* thr = Emu.GetCPU().GetThread(thread_id);
 	if(!thr) return CELL_ESRCH;
 
-	GetCurrentPPUThread().Wait(*thr);
+	while (thr->IsAlive())
+	{
+		if (Emu.IsStopped())
+		{
+			ConLog.Warning("sys_ppu_thread_join(%d) aborted", thread_id);
+			return CELL_OK;
+		}
+		Sleep(1);
+	}
+
+	vptr = thr->GetExitStatus();
 	return CELL_OK;
 }
 
@@ -129,10 +139,10 @@ int sys_ppu_thread_restart(u32 thread_id)
 	return CELL_OK;
 }
 
-int sys_ppu_thread_create(u32 thread_id_addr, u32 entry, u32 arg, int prio, u32 stacksize, u64 flags, u32 threadname_addr)
+int sys_ppu_thread_create(u32 thread_id_addr, u32 entry, u64 arg, int prio, u32 stacksize, u64 flags, u32 threadname_addr)
 {
 	sysPrxForUser.Log("sys_ppu_thread_create(thread_id_addr=0x%x, entry=0x%x, arg=0x%x, prio=%d, stacksize=0x%x, flags=0x%llx, threadname_addr=0x%x('%s'))",
-		thread_id_addr, entry, arg, prio, stacksize, flags, threadname_addr, Memory.ReadString(threadname_addr).mb_str());
+		thread_id_addr, entry, arg, prio, stacksize, flags, threadname_addr, Memory.ReadString(threadname_addr).wx_str());
 
 	if(!Memory.IsGoodAddr(entry) || !Memory.IsGoodAddr(thread_id_addr) || !Memory.IsGoodAddr(threadname_addr))
 	{
@@ -141,13 +151,13 @@ int sys_ppu_thread_create(u32 thread_id_addr, u32 entry, u32 arg, int prio, u32 
 
 	CPUThread& new_thread = Emu.GetCPU().AddThread(CPU_THREAD_PPU);
 
-	Memory.Write32(thread_id_addr, new_thread.GetId());
+	Memory.Write64(thread_id_addr, new_thread.GetId());
 	new_thread.SetEntry(entry);
 	new_thread.SetArg(0, arg);
 	new_thread.SetPrio(prio);
 	new_thread.SetStackSize(stacksize);
 	//new_thread.flags = flags;
-	new_thread.SetName(Memory.ReadString(threadname_addr).mb_str());
+	new_thread.SetName(Memory.ReadString(threadname_addr).ToStdString());
 	new_thread.Run();
 	new_thread.Exec();
 
@@ -175,6 +185,6 @@ int sys_ppu_thread_get_id(const u32 id_addr)
 {
 	sysPrxForUser.Log("sys_ppu_thread_get_id(id_addr=0x%x)", id_addr);
 
-	Memory.Write32(id_addr, GetCurrentPPUThread().GetId());
+	Memory.Write64(id_addr, GetCurrentPPUThread().GetId());
 	return CELL_OK;
 }

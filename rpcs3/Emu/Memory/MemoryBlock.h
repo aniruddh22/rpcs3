@@ -1,5 +1,7 @@
 #pragma once
 
+#define PAGE_4K(x) (x + 4095) & ~(4095)
+
 struct MemInfo
 {
 	u64 addr;
@@ -21,8 +23,8 @@ struct MemBlockInfo : public MemInfo
 	void* mem;
 
 	MemBlockInfo(u64 _addr, u32 _size)
-		: MemInfo(_addr, _size)
-		, mem(malloc(_size))
+		: MemInfo(_addr, PAGE_4K(_size))
+		, mem(_aligned_malloc(PAGE_4K(_size), 128))
 	{
 		if(!mem)
 		{
@@ -35,8 +37,25 @@ struct MemBlockInfo : public MemInfo
 
 	~MemBlockInfo()
 	{
-		free(mem);
+		_aligned_free(mem);
 		mem = nullptr;
+	}
+};
+
+struct VirtualMemInfo : public MemInfo
+{
+	u64 realAddress;
+
+	VirtualMemInfo(u64 _addr, u64 _realaddr, u32 _size)
+		: MemInfo(_addr, _size)
+		, realAddress(_realaddr)
+	{
+	}
+
+	VirtualMemInfo()
+		: MemInfo(0, 0)
+		, realAddress(0)
+	{
 	}
 };
 
@@ -103,8 +122,8 @@ public:
 	u8* GetMem() const { return mem; }
 	virtual u8* GetMem(u64 addr) const { return mem + addr; }
 
-	virtual bool Alloc(u64 addr, u32 size) { return false; }
-	virtual u64 Alloc(u32 size) { return 0; }
+	virtual bool AllocFixed(u64 addr, u32 size) { return false; }
+	virtual u64 AllocAlign(u32 size, u32 align = 1) { return 0; }
 	virtual bool Alloc() { return false; }
 	virtual bool Free(u64 addr) { return false; }
 	virtual bool Lock(u64 addr, u32 size) { return false; }
@@ -173,8 +192,11 @@ class NullMemoryBlock : public MemoryBlock
 template<typename PT>
 class DynamicMemoryBlockBase : public PT
 {
-	Array<MemBlockInfo> m_used_mem;
-	Array<MemBlockInfo> m_locked_mem;
+	mutable std::mutex m_lock;
+	Array<MemBlockInfo> m_allocated; // allocation info
+	Array<u8*> m_pages; // real addresses of every 4096 byte pages (array size should be fixed)
+	Array<u8*> m_locked; // locked pages should be moved here
+	
 	u32 m_max_size;
 
 public:
@@ -192,8 +214,8 @@ public:
 
 	virtual void Delete();
 
-	virtual bool Alloc(u64 addr, u32 size);
-	virtual u64 Alloc(u32 size);
+	virtual bool AllocFixed(u64 addr, u32 size);
+	virtual u64 AllocAlign(u32 size, u32 align = 1);
 	virtual bool Alloc();
 	virtual bool Free(u64 addr);
 	virtual bool Lock(u64 addr, u32 size);
@@ -202,8 +224,59 @@ public:
 	virtual u8* GetMem(u64 addr) const;
 
 private:
-	void AppendUsedMem(u64 addr, u32 size);
-	void AppendLockedMem(u64 addr, u32 size);
+	void AppendMem(u64 addr, u32 size);
+};
+
+class VirtualMemoryBlock : public MemoryBlock
+{
+	Array<VirtualMemInfo> m_mapped_memory;
+	u32 m_reserve_size;
+
+public:
+	VirtualMemoryBlock();
+
+	virtual MemoryBlock* SetRange(const u64 start, const u32 size);
+	virtual bool IsInMyRange(const u64 addr);
+	virtual bool IsInMyRange(const u64 addr, const u32 size);
+	virtual bool IsMyAddress(const u64 addr);
+	virtual void Delete();
+
+	// maps real address to virtual address space, returns the mapped address or 0 on failure (if no address is specified the
+	// first mappable space is used)
+	virtual u64 Map(u64 realaddr, u32 size, u64 addr = 0);
+
+	// Unmap real address (please specify only starting point, no midway memory will be unmapped), returns the size of the unmapped area
+	virtual u32 UnmapRealAddress(u64 realaddr);
+
+	// Unmap address (please specify only starting point, no midway memory will be unmapped), returns the size of the unmapped area
+	virtual u32 UnmapAddress(u64 addr);
+
+	// Reserve a certain amount so no one can use it, returns true on succces, false on failure
+	virtual bool Reserve(u32 size);
+
+	// Unreserve a certain amount of bytes, returns true on succcess, false if size is bigger than the reserved amount
+	virtual bool Unreserve(u32 size);
+
+	// Return the total amount of reserved memory
+	virtual u32 GetResevedAmount();
+
+	virtual bool Read8(const u64 addr, u8* value);
+	virtual bool Read16(const u64 addr, u16* value);
+	virtual bool Read32(const u64 addr, u32* value);
+	virtual bool Read64(const u64 addr, u64* value);
+	virtual bool Read128(const u64 addr, u128* value);
+
+	virtual bool Write8(const u64 addr, const u8 value);
+	virtual bool Write16(const u64 addr, const u16 value);
+	virtual bool Write32(const u64 addr, const u32 value);
+	virtual bool Write64(const u64 addr, const u64 value);
+	virtual bool Write128(const u64 addr, const u128 value);
+
+	// return the real address given a mapped address, if not mapped return 0
+	u64 getRealAddr(u64 addr);
+
+	// return the mapped address given a real address, if not mapped return 0
+	u64 getMappedAddress(u64 realAddress);
 };
 
 #include "DynamicMemoryBlockBase.inl"

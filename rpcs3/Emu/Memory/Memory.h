@@ -1,5 +1,6 @@
 #pragma once
 #include "MemoryBlock.h"
+#include <vector>
 
 enum MemoryType
 {
@@ -13,7 +14,7 @@ class MemoryBase
 	NullMemoryBlock NullMem;
 
 public:
-	ArrayF<MemoryBlock> MemoryBlocks;
+	std::vector<MemoryBlock*> MemoryBlocks;
 	MemoryBlock* UserMemory;
 
 	DynamicMemoryBlock MainMem;
@@ -24,6 +25,7 @@ public:
 	DynamicMemoryBlock StackMem;
 	MemoryBlock SpuRawMem;
 	MemoryBlock SpuThrMem;
+	VirtualMemoryBlock RSXIOMem;
 
 	struct
 	{
@@ -95,15 +97,15 @@ public:
 
 	MemoryBlock& GetMemByNum(const u8 num)
 	{
-		if(num >= MemoryBlocks.GetCount()) return NullMem;
-		return MemoryBlocks.Get(num);
+		if(num >= MemoryBlocks.size()) return NullMem;
+		return *MemoryBlocks[num];
 	}
 
 	MemoryBlock& GetMemByAddr(const u64 addr)
 	{
-		for(uint i=0; i<MemoryBlocks.GetCount(); ++i)
+		for(uint i=0; i<MemoryBlocks.size(); ++i)
 		{
-			if(MemoryBlocks.Get(i).IsMyAddress(addr)) return MemoryBlocks[i];
+			if(MemoryBlocks[i]->IsMyAddress(addr)) return *MemoryBlocks[i];
 		}
 
 		return NullMem;
@@ -122,9 +124,9 @@ public:
 	u64 RealToVirtualAddr(const void* addr)
 	{
 		const u64 raddr = (u64)addr;
-		for(u32 i=0; i<MemoryBlocks.GetCount(); ++i)
+		for(u32 i=0; i<MemoryBlocks.size(); ++i)
 		{
-			MemoryBlock& b = MemoryBlocks[i];
+			MemoryBlock& b = *MemoryBlocks[i];
 			const u64 baddr = (u64)b.GetMem();
 
 			if(raddr >= baddr && raddr < baddr + b.GetSize())
@@ -140,7 +142,7 @@ public:
 	{
 		//if(SpuRawMem.GetSize()) return false;
 
-		MemoryBlocks.Add(SpuRawMem.SetRange(0xe0000000, 0x100000 * max_spu_raw));
+		MemoryBlocks.push_back(SpuRawMem.SetRange(0xe0000000, 0x100000 * max_spu_raw));
 
 		return true;
 	}
@@ -155,27 +157,27 @@ public:
 		switch(type)
 		{
 		case Memory_PS3:
-			MemoryBlocks.Add(MainMem.SetRange(0x00010000, 0x2FFF0000));
-			MemoryBlocks.Add(UserMemory = PRXMem.SetRange(0x30000000, 0x10000000));
-			MemoryBlocks.Add(RSXCMDMem.SetRange(0x40000000, 0x10000000));
-			MemoryBlocks.Add(MmaperMem.SetRange(0xB0000000, 0x10000000));
-			MemoryBlocks.Add(RSXFBMem.SetRange(0xC0000000, 0x10000000));
-			MemoryBlocks.Add(StackMem.SetRange(0xD0000000, 0x10000000));
-			//MemoryBlocks.Add(SpuRawMem.SetRange(0xE0000000, 0x10000000));
-			//MemoryBlocks.Add(SpuThrMem.SetRange(0xF0000000, 0x10000000));
+			MemoryBlocks.push_back(MainMem.SetRange(0x00010000, 0x2FFF0000));
+			MemoryBlocks.push_back(UserMemory = PRXMem.SetRange(0x30000000, 0x10000000));
+			MemoryBlocks.push_back(RSXCMDMem.SetRange(0x40000000, 0x10000000));
+			MemoryBlocks.push_back(MmaperMem.SetRange(0xB0000000, 0x10000000));
+			MemoryBlocks.push_back(RSXFBMem.SetRange(0xC0000000, 0x10000000));
+			MemoryBlocks.push_back(StackMem.SetRange(0xD0000000, 0x10000000));
+			//MemoryBlocks.push_back(SpuRawMem.SetRange(0xE0000000, 0x10000000));
+			//MemoryBlocks.push_back(SpuThrMem.SetRange(0xF0000000, 0x10000000));
 		break;
 
 		case Memory_PSV:
-			MemoryBlocks.Add(PSVMemory.RAM.SetRange(0x81000000, 0x10000000));
-			MemoryBlocks.Add(UserMemory = PSVMemory.Userspace.SetRange(0x91000000, 0x10000000));
+			MemoryBlocks.push_back(PSVMemory.RAM.SetRange(0x81000000, 0x10000000));
+			MemoryBlocks.push_back(UserMemory = PSVMemory.Userspace.SetRange(0x91000000, 0x10000000));
 		break;
 
 		case Memory_PSP:
-			MemoryBlocks.Add(PSPMemory.Scratchpad.SetRange(0x00010000, 0x00004000));
-			MemoryBlocks.Add(PSPMemory.VRAM.SetRange(0x04000000, 0x00200000));
-			MemoryBlocks.Add(PSPMemory.RAM.SetRange(0x08000000, 0x02000000));
-			MemoryBlocks.Add(PSPMemory.Kernel.SetRange(0x88000000, 0x00800000));
-			MemoryBlocks.Add(UserMemory = PSPMemory.Userspace.SetRange(0x08800000, 0x01800000));
+			MemoryBlocks.push_back(PSPMemory.Scratchpad.SetRange(0x00010000, 0x00004000));
+			MemoryBlocks.push_back(PSPMemory.VRAM.SetRange(0x04000000, 0x00200000));
+			MemoryBlocks.push_back(PSPMemory.RAM.SetRange(0x08000000, 0x02000000));
+			MemoryBlocks.push_back(PSPMemory.Kernel.SetRange(0x88000000, 0x00800000));
+			MemoryBlocks.push_back(UserMemory = PSPMemory.Userspace.SetRange(0x08800000, 0x01800000));
 		break;
 		}
 
@@ -184,9 +186,9 @@ public:
 
 	bool IsGoodAddr(const u64 addr)
 	{
-		for(uint i=0; i<MemoryBlocks.GetCount(); ++i)
+		for(uint i=0; i<MemoryBlocks.size(); ++i)
 		{
-			if(MemoryBlocks[i].IsMyAddress(addr)) return true;
+			if(MemoryBlocks[i]->IsMyAddress(addr)) return true;
 		}
 
 		return false;
@@ -194,10 +196,10 @@ public:
 
 	bool IsGoodAddr(const u64 addr, const u32 size)
 	{
-		for(uint i=0; i<MemoryBlocks.GetCount(); ++i)
+		for(uint i=0; i<MemoryBlocks.size(); ++i)
 		{
-			if( MemoryBlocks[i].IsMyAddress(addr) &&
-				MemoryBlocks[i].IsMyAddress(addr + size - 1) ) return true;
+			if( MemoryBlocks[i]->IsMyAddress(addr) &&
+				MemoryBlocks[i]->IsMyAddress(addr + size - 1) ) return true;
 		}
 
 		return false;
@@ -210,12 +212,12 @@ public:
 
 		ConLog.Write("Closing memory...");
 
-		for(uint i=0; i<MemoryBlocks.GetCount(); ++i)
+		for(uint i=0; i<MemoryBlocks.size(); ++i)
 		{
-			MemoryBlocks[i].Delete();
+			MemoryBlocks[i]->Delete();
 		}
 
-		MemoryBlocks.ClearF();
+		MemoryBlocks.clear();
 	}
 
 	void Write8(const u64 addr, const u8 data);
@@ -236,6 +238,106 @@ public:
 	u64 Read64(const u64 addr);
 	u128 Read128(const u64 addr);
 
+	bool CopyToReal(void* real, u32 from, u32 count) // (4K pages) copy from virtual to real memory
+	{
+		if (!count) return true;
+
+		u8* to = (u8*)real;
+
+		if (u32 frag = from & 4095)
+		{
+			if (!IsGoodAddr(from)) return false;
+			u32 num = 4096 - frag;
+			if (count < num) num = count;
+			memcpy(to, GetMemFromAddr(from), num);
+			to += num;
+			from += num;
+			count -= num;
+		}
+
+		for (u32 page = count / 4096; page > 0; page--)
+		{
+			if (!IsGoodAddr(from)) return false;
+			memcpy(to, GetMemFromAddr(from), 4096);
+			to += 4096;
+			from += 4096;
+			count -= 4096;
+		}
+
+		if (count)
+		{
+			if (!IsGoodAddr(from)) return false;
+			memcpy(to, GetMemFromAddr(from), count);
+		}
+
+		return true;
+	}
+
+	bool CopyFromReal(u32 to, void* real, u32 count) // (4K pages) copy from real to virtual memory
+	{
+		if (!count) return true;
+
+		u8* from = (u8*)real;
+
+		if (u32 frag = to & 4095)
+		{
+			if (!IsGoodAddr(to)) return false;
+			u32 num = 4096 - frag;
+			if (count < num) num = count;
+			memcpy(GetMemFromAddr(to), from, num);
+			to += num;
+			from += num;
+			count -= num;
+		}
+
+		for (u32 page = count / 4096; page > 0; page--)
+		{
+			if (!IsGoodAddr(to)) return false;
+			memcpy(GetMemFromAddr(to), from, 4096);
+			to += 4096;
+			from += 4096;
+			count -= 4096;
+		}
+
+		if (count)
+		{
+			if (!IsGoodAddr(to)) return false;
+			memcpy(GetMemFromAddr(to), from, count);
+		}
+
+		return true;
+
+	}
+
+	bool Copy(u32 to, u32 from, u32 count) // (4K pages) copy from virtual to virtual memory through real
+	{
+		if (u8* buf = (u8*)malloc(count))
+		{
+			if (CopyToReal(buf, from, count))
+			{
+				if (CopyFromReal(to, buf, count))
+				{
+					free(buf);
+					return true;
+				}
+				else
+				{
+					free(buf);
+					return false;
+				}
+			}
+			else
+			{
+				free(buf);
+				return false;
+			}
+		}
+		else
+		{
+			return false;
+		}
+	}
+
 	void ReadLeft(u8* dst, const u64 addr, const u32 size)
 	{
 		MemoryBlock& mem = GetMemByAddr(addr);
@@ -246,9 +348,7 @@ public:
 			return;
 		}
 
-		u32 offs = mem.FixAddr(addr);
-
-		for(u32 i=0; i<size; ++i) dst[size - 1 - i] = mem.FastRead8(offs + i);
+		for(u32 i=0; i<size; ++i) mem.Read8(addr + i, dst + size - 1 - i);
 	}
 
 	void WriteLeft(const u64 addr, const u32 size, const u8* src)
@@ -261,9 +361,7 @@ public:
 			return;
 		}
 
-		u32 offs = mem.FixAddr(addr);
-
-		for(u32 i=0; i<size; ++i) mem.FastWrite8(offs + i, src[size - 1 - i]);
+		for(u32 i=0; i<size; ++i) mem.Write8(addr + i, src[size - 1 - i]);
 	}
 
 	void ReadRight(u8* dst, const u64 addr, const u32 size)
@@ -276,9 +374,7 @@ public:
 			return;
 		}
 
-		u32 offs = mem.FixAddr(addr);
-
-		for(u32 i=0; i<size; ++i) dst[i] = mem.FastRead8(offs + (size - 1 - i));
+		for(u32 i=0; i<size; ++i) mem.Read8(addr + (size - 1 - i), dst + i);
 	}
 
 	void WriteRight(const u64 addr, const u32 size, const u8* src)
@@ -291,9 +387,7 @@ public:
 			return;
 		}
 
-		u32 offs = mem.FixAddr(addr);
-
-		for(u32 i=0; i<size; ++i) mem.FastWrite8(offs + (size - 1 - i), src[i]);
+		for(u32 i=0; i<size; ++i) mem.Write8(addr + (size - 1 - i), src[i]);
 	}
 
 	template<typename T> void WriteData(const u64 addr, const T* data)
@@ -308,16 +402,14 @@ public:
 
 	wxString ReadString(const u64 addr, const u64 len)
 	{
-		wxString ret = wxEmptyString;
-
-		if(len) memcpy(wxStringBuffer(ret, len), GetMemFromAddr(addr), len);
+		wxString ret(GetMemFromAddr(addr), wxConvUTF8,len);
 
 		return ret;
 	}
 
 	wxString ReadString(const u64 addr)
 	{
-		return wxString((const char*)GetMemFromAddr(addr));
+		return wxString((const char*)GetMemFromAddr(addr), wxConvUTF8);
 	}
 
 	void WriteString(const u64 addr, const wxString& str)
@@ -348,7 +440,7 @@ public:
 
 	u64 Alloc(const u32 size, const u32 align)
 	{
-		return UserMemory->Alloc(AlignAddr(size, align));
+		return UserMemory->AllocAlign(size, align);
 	}
 
 	bool Free(const u64 addr)
@@ -373,20 +465,21 @@ public:
 			return false;
 		}
 
-		MemoryBlocks.Add((new MemoryMirror())->SetRange(GetMemFromAddr(src_addr), dst_addr, size));
+		MemoryBlocks.push_back((new MemoryMirror())->SetRange(GetMemFromAddr(src_addr), dst_addr, size));
 		ConLog.Warning("memory mapped 0x%llx to 0x%llx size=0x%x", src_addr, dst_addr, size);
 		return true;
 	}
 
 	bool Unmap(const u64 addr)
 	{
-		for(uint i=0; i<MemoryBlocks.GetCount(); ++i)
+		for(uint i=0; i<MemoryBlocks.size(); ++i)
 		{
-			if(MemoryBlocks[i].IsMirror())
+			if(MemoryBlocks[i]->IsMirror())
 			{
-				if(MemoryBlocks[i].GetStartAddr() == addr)
+				if(MemoryBlocks[i]->GetStartAddr() == addr)
 				{
-					MemoryBlocks.RemoveAt(i);
+					delete MemoryBlocks[i];
+					MemoryBlocks.erase(MemoryBlocks.begin() + i);
 				}
 			}
 		}
@@ -407,32 +500,50 @@ public:
 
 extern MemoryBase Memory;
 
-template<typename T>
+template<typename T, typename AT = u32>
 class mem_base_t
 {
 protected:
-	u32 m_addr;
+	AT m_addr;
 
 public:
-	mem_base_t(u32 addr) : m_addr(addr)
+	mem_base_t(AT addr) : m_addr(addr)
 	{
 	}
 
-	u32 GetAddr() const { return m_addr; }
+	__forceinline AT GetAddr() const { return m_addr; }
 
-	bool IsGood() const
+	__forceinline bool IsGood() const
 	{
 		return Memory.IsGoodAddr(m_addr, sizeof(T));
 	}
+
+	__forceinline operator bool() const
+	{
+		return m_addr != 0;
+	}
+
+	__forceinline bool operator != (nullptr_t) const
+	{
+		return m_addr != 0;
+	}
+
+	__forceinline bool operator == (nullptr_t) const
+	{
+		return m_addr == 0;
+	}
 };
 
-template<typename T>
-class mem_ptr_t : public mem_base_t<T>
+template<typename T, typename AT = u32>
+class mem_ptr_t : public mem_base_t<T, AT>
 {
 public:
-	mem_ptr_t(u32 addr) : mem_base_t<T>(addr)
+	mem_ptr_t(AT addr) : mem_base_t<T, AT>(addr)
 	{
 	}
+
+	template<typename NT> operator mem_ptr_t<NT, AT>&() { return (mem_ptr_t<NT, AT>&)*this; }
+	template<typename NT> operator const mem_ptr_t<NT, AT>&() const { return (const mem_ptr_t<NT, AT>&)*this; }
 
 	T* operator -> ()
 	{
@@ -512,8 +623,6 @@ public:
 		return (const T&)Memory[this->m_addr + sizeof(T) * index];
 	}
 
-	operator bool() const { return this->m_addr == 0; }
-
 	bool operator == (mem_ptr_t right) const { return this->m_addr == right.m_addr; }
 	bool operator != (mem_ptr_t right) const { return this->m_addr != right.m_addr; }
 	bool operator > (mem_ptr_t right) const { return this->m_addr > right.m_addr; }
@@ -529,6 +638,32 @@ public:
 	bool operator <= (T* right) const { return (T*)&Memory[this->m_addr] <= right; }
 };
 
+template<typename AT>
+class mem_ptr_t<void, AT> : public mem_base_t<u8, AT>
+{
+public:
+	mem_ptr_t(AT addr) : mem_base_t<u8, AT>(addr)
+	{
+	}
+
+	template<typename NT> operator mem_ptr_t<NT>&() { return (mem_ptr_t<NT>&)*this; }
+	template<typename NT> operator const mem_ptr_t<NT>&() const { return (const mem_ptr_t<NT>&)*this; }
+
+	bool operator == (mem_ptr_t right) const { return this->m_addr == right.m_addr; }
+	bool operator != (mem_ptr_t right) const { return this->m_addr != right.m_addr; }
+	bool operator > (mem_ptr_t right) const { return this->m_addr > right.m_addr; }
+	bool operator < (mem_ptr_t right) const { return this->m_addr < right.m_addr; }
+	bool operator >= (mem_ptr_t right) const { return this->m_addr >= right.m_addr; }
+	bool operator <= (mem_ptr_t right) const { return this->m_addr <= right.m_addr; }
+
+	bool operator == (void* right) const { return (void*)&Memory[this->m_addr] == right; }
+	bool operator != (void* right) const { return (void*)&Memory[this->m_addr] != right; }
+	bool operator > (void* right) const { return (void*)&Memory[this->m_addr] > right; }
+	bool operator < (void* right) const { return (void*)&Memory[this->m_addr] < right; }
+	bool operator >= (void* right) const { return (void*)&Memory[this->m_addr] >= right; }
+	bool operator <= (void* right) const { return (void*)&Memory[this->m_addr] <= right; }
+};
+
 template<typename T> static bool operator == (T* left, mem_ptr_t<T> right) { return left == (T*)&Memory[right.GetAddr()]; }
 template<typename T> static bool operator != (T* left, mem_ptr_t<T> right) { return left != (T*)&Memory[right.GetAddr()]; }
 template<typename T> static bool operator > (T* left, mem_ptr_t<T> right) { return left > (T*)&Memory[right.GetAddr()]; }
@@ -536,10 +671,13 @@ template<typename T> static bool operator < (T* left, mem_ptr_t<T> right) { retu
 template<typename T> static bool operator >= (T* left, mem_ptr_t<T> right) { return left >= (T*)&Memory[right.GetAddr()]; }
 template<typename T> static bool operator <= (T* left, mem_ptr_t<T> right) { return left <= (T*)&Memory[right.GetAddr()]; }
 
-template<typename T> class mem_t : public mem_base_t<T>
+template<typename T, typename AT = u32>
+class mem_beptr_t : public mem_ptr_t<T, be_t<AT>> {};
+
+template<typename T, typename AT = u32> class mem_t : public mem_base_t<T, AT>
 {
 public:
-	mem_t(u32 addr) : mem_base_t<T>(addr)
+	mem_t(AT addr) : mem_base_t<T, AT>(addr)
 	{
 	}
 
@@ -548,6 +686,11 @@ public:
 		(be_t<T>&)Memory[this->m_addr] = right;
 
 		return *this;
+	}
+
+	__forceinline T GetValue()
+	{
+		return (be_t<T>&)Memory[this->m_addr];
 	}
 
 	operator const T() const
@@ -567,7 +710,7 @@ public:
 	mem_t& operator >>= (T right) { return *this = (*this) >> right; }
 };
 
-template<typename T> class mem_list_ptr_t : public mem_base_t<T>
+template<typename T, typename AT=u32> class mem_list_ptr_t : public mem_base_t<T, AT>
 {
 public:
 	mem_list_ptr_t(u32 addr) : mem_base_t<T>(addr)
@@ -636,6 +779,154 @@ public:
 
 	u64 GetAddr() const { return m_addr; }
 	void SetAddr(const u64 addr) { m_addr = addr; }
+};
+
+template<typename T>
+struct _func_arg
+{
+	__forceinline static u64 get_value(const T& arg)
+	{
+		return arg;
+	}
+};
+
+template<typename T>
+struct _func_arg<mem_base_t<T, u32>>
+{
+	__forceinline static u64 get_value(const mem_base_t<T, u32> arg)
+	{
+		return arg.GetAddr();
+	}
+};
+
+template<typename T> struct _func_arg<mem_ptr_t<T, u32>> : public _func_arg<mem_base_t<T, u32>> {};
+template<> struct _func_arg<mem_ptr_t<void, u32>> : public _func_arg<mem_base_t<u8, u32>> {};
+template<typename T> struct _func_arg<mem_list_ptr_t<T, u32>> : public _func_arg<mem_base_t<T, u32>> {};
+template<typename T> struct _func_arg<mem_t<T, u32>> : public _func_arg<mem_base_t<T, u32>> {};
+
+template<typename T>
+struct _func_arg<be_t<T>>
+{
+	__forceinline static u64 get_value(const be_t<T>& arg)
+	{
+		return arg.ToLE();
+	}
+};
+
+template<typename T> class mem_func_ptr_t;
+
+template<typename RT>
+class mem_func_ptr_t<RT (*)()> : public mem_base_t<u64>
+{
+	__forceinline void call_func(bool is_async)
+	{
+		Callback cb;
+		cb.SetAddr(m_addr);
+		cb.Branch(!is_async);
+	}
+
+public:
+	__forceinline void operator()()
+	{
+		call_func(false);
+	}
+
+	__forceinline void async()
+	{
+		call_func(true);
+	}
+};
+
+template<typename RT, typename T1>
+class mem_func_ptr_t<RT (*)(T1)> : public mem_base_t<u64>
+{
+	__forceinline void call_func(bool is_async, T1 a1)
+	{
+		Callback cb;
+		cb.SetAddr(m_addr);
+		cb.Handle(_func_arg<T1>::get_value(a1));
+		cb.Branch(!is_async);
+	}
+
+public:
+	__forceinline void operator()(T1 a1)
+	{
+		call_func(false, a1);
+	}
+
+	__forceinline void async(T1 a1)
+	{
+		call_func(true, a1);
+	}
+};
+
+template<typename RT, typename T1, typename T2>
+class mem_func_ptr_t<RT (*)(T1, T2)> : public mem_base_t<u64>
+{
+	__forceinline void call_func(bool is_async, T1 a1, T2 a2)
+	{
+		Callback cb;
+		cb.SetAddr(m_addr);
+		cb.Handle(_func_arg<T1>::get_value(a1), _func_arg<T2>::get_value(a2));
+		cb.Branch(!is_async);
+	}
+
+public:
+	__forceinline void operator()(T1 a1, T2 a2)
+	{
+		call_func(false, a1, a2);
+	}
+
+	__forceinline void async(T1 a1, T2 a2)
+	{
+		call_func(true, a1, a2);
+	}
+};
+
+template<typename RT, typename T1, typename T2, typename T3>
+class mem_func_ptr_t<RT (*)(T1, T2, T3)> : public mem_base_t<u64>
+{
+	__forceinline void call_func(bool is_async, T1 a1, T2 a2, T3 a3)
+	{
+		Callback cb;
+		cb.SetAddr(m_addr);
+		cb.Handle(_func_arg<T1>::get_value(a1), _func_arg<T2>::get_value(a2), _func_arg<T3>::get_value(a3));
+		cb.Branch(!is_async);
+	}
+
+public:
+	__forceinline void operator()(T1 a1, T2 a2, T3 a3)
+	{
+		call_func(false, a1, a2, a3);
+	}
+
+	__forceinline void async(T1 a1, T2 a2, T3 a3)
+	{
+		call_func(true, a1, a2, a3);
+	}
+};
+
+template<typename RT, typename T1, typename T2, typename T3, typename T4>
+class mem_func_ptr_t<RT (*)(T1, T2, T3, T4)> : public mem_base_t<u64>
+{
+	__forceinline void call_func(bool is_async, T1 a1, T2 a2, T3 a3, T4 a4)
+	{
+		Callback cb;
+		cb.SetAddr(m_addr);
+		cb.Handle(_func_arg<T1>::get_value(a1), _func_arg<T2>::get_value(a2), _func_arg<T3>::get_value(a3), _func_arg<T4>::get_value(a4));
+		cb.Branch(!is_async);
+	}
+
+public:
+	__forceinline void operator()(T1 a1, T2 a2, T3 a3, T4 a4)
+	{
+		call_func(false, a1, a2, a3, a4);
+	}
+
+	__forceinline void async(T1 a1, T2 a2, T3 a3, T4 a4)
+	{
+		call_func(true, a1, a2, a3, a4);
+	}
 };
 
 template<typename T>
@@ -725,10 +1016,10 @@ public:
 		return m_ptr;
 	}
 
-    T operator [](int index)
-    {
-        return *(m_ptr + index);
-    }
+	T operator [](int index)
+	{
+		return *(m_ptr + index);
+	}
 
 	template<typename T1>
 	operator const mem_t<T1>() const
@@ -748,10 +1039,10 @@ public:
 	}
 };
 
-typedef mem_t<u8> mem8_t;
-typedef mem_t<u16> mem16_t;
-typedef mem_t<u32> mem32_t;
-typedef mem_t<u64> mem64_t;
+typedef mem_t<u8, u32> mem8_t;
+typedef mem_t<u16, u32> mem16_t;
+typedef mem_t<u32, u32> mem32_t;
+typedef mem_t<u64, u32> mem64_t;
 
 /*
 typedef mem_ptr_t<be_t<u8>> mem8_ptr_t;
@@ -765,7 +1056,7 @@ typedef mem_list_ptr_t<u32> mem32_lptr_t;
 typedef mem_list_ptr_t<u64> mem64_lptr_t;
 */
 
-typedef mem_list_ptr_t<u8> mem8_ptr_t;
-typedef mem_list_ptr_t<u16> mem16_ptr_t;
-typedef mem_list_ptr_t<u32> mem32_ptr_t;
-typedef mem_list_ptr_t<u64> mem64_ptr_t;
+typedef mem_list_ptr_t<u8, u32> mem8_ptr_t;
+typedef mem_list_ptr_t<u16, u32> mem16_ptr_t;
+typedef mem_list_ptr_t<u32, u32> mem32_ptr_t;
+typedef mem_list_ptr_t<u64, u32> mem64_ptr_t;

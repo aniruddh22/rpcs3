@@ -47,14 +47,12 @@ AboutDialog::AboutDialog(wxWindow *parent)
 	wxBoxSizer* s_panel_credits(new wxBoxSizer(wxHORIZONTAL));
 	wxStaticText* t_section1 = new wxStaticText(this, wxID_ANY, "\nDevelopers:\n\nDH\nAlexAltea\nHykem\nOil", wxDefaultPosition, wxSize(156,160));
 	wxStaticText* t_section2 = new wxStaticText(this, wxID_ANY, "\nThanks:\n\nBlackDaemon", wxDefaultPosition, wxSize(156,160));
-	wxStaticText* t_section3 = new wxStaticText(this, wxID_ANY, "\nExternal code:\n\n - SELF Decrypter based on scetool (C) 2011-2013 by naehrwert\n - PKG Installer based on ps3pkgtool (C) 2011-2013 by avtolstoy and PKG Finalize (C) by geohot", wxDefaultPosition, wxSize(156,160));
 
 	s_panel_credits->AddSpacer(12);
 	s_panel_credits->Add(t_section1);
 	s_panel_credits->AddSpacer(8);
 	s_panel_credits->Add(t_section2);
 	s_panel_credits->AddSpacer(8);
-	s_panel_credits->Add(t_section3);
 	s_panel_credits->AddSpacer(12);
 	
 	//Buttons
@@ -67,7 +65,7 @@ AboutDialog::AboutDialog(wxWindow *parent)
 
 	s_panel_buttons->AddSpacer(12);
 	s_panel_buttons->Add(new wxButton(this, wxID_OK), wxLEFT, 0, 5);
-	s_panel_buttons->AddSpacer(256);
+	s_panel_buttons->AddSpacer(218);
 	s_panel_buttons->Add(b_website, wxLEFT, 0, 5);
 	s_panel_buttons->AddSpacer(5);
 	s_panel_buttons->Add(b_forum, wxLEFT, 0, 5);
@@ -77,9 +75,9 @@ AboutDialog::AboutDialog(wxWindow *parent)
 	s_panel->Add(s_panel_logo);
 	s_panel->Add(s_panel_credits);
 	s_panel->Add(s_panel_buttons);
+	s_panel->AddSpacer(12);
 
-	this->SetSizerAndFit(s_panel);
-	this->SetSize(this->GetSize()-wxSize(0,220));
+	SetSizerAndFit(s_panel);
 }
 
 void AboutDialog::OpenWebsite(wxCommandEvent& WXUNUSED(event))

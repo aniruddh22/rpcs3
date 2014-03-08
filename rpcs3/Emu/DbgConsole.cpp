@@ -6,8 +6,9 @@ BEGIN_EVENT_TABLE(DbgConsole, FrameBase)
 END_EVENT_TABLE()
 
 DbgConsole::DbgConsole()
-	: FrameBase(NULL, wxID_ANY, "DbgConsole", wxEmptyString, wxDefaultSize, wxDefaultPosition, wxDEFAULT_FRAME_STYLE, true)
-	, ThreadBase(false, "DbgConsole thread")
+	: FrameBase(nullptr, wxID_ANY, "DbgConsole", wxEmptyString, wxDefaultSize, wxDefaultPosition, wxDEFAULT_FRAME_STYLE, true)
+	, ThreadBase("DbgConsole thread")
+	, m_output(nullptr)
 {
 	m_console = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
 		wxSize(500, 500), wxTE_MULTILINE | wxTE_READONLY | wxTE_RICH2);
@@ -16,6 +17,9 @@ DbgConsole::DbgConsole()
 
 	m_color_white = new wxTextAttr(wxColour(255, 255, 255));
 	m_color_red = new wxTextAttr(wxColour(255, 0, 0));
+
+	if (Ini.HLESaveTTY.GetValue())
+		m_output = new wxFile("tty.log", wxFile::write);
 }
 
 DbgConsole::~DbgConsole()
@@ -26,7 +30,14 @@ DbgConsole::~DbgConsole()
 
 void DbgConsole::Write(int ch, const wxString& text)
 {
-	while(m_dbg_buffer.IsBusy()) Sleep(1);
+	while (m_dbg_buffer.IsBusy())
+	{
+		if (Emu.IsStopped())
+		{
+			return;
+		}
+		Sleep(1);
+	}
 	m_dbg_buffer.Push(DbgPacket(ch, text));
 
 	if(!IsAlive()) Start();
@@ -39,12 +50,25 @@ void DbgConsole::Clear()
 
 void DbgConsole::Task()
 {
-	while(m_dbg_buffer.HasNewPacket() && !TestDestroy())
+	while(!TestDestroy())
 	{
+		if(!m_dbg_buffer.HasNewPacket())
+		{
+			if (Emu.IsStopped())
+			{
+				break;
+			}
+			Sleep(1);
+			continue;
+		}
+
 		DbgPacket packet = m_dbg_buffer.Pop();
 		m_console->SetDefaultStyle(packet.m_ch == 1 ? *m_color_red : *m_color_white);
 		m_console->SetInsertionPointEnd();
 		m_console->WriteText(packet.m_text);
+
+		if (m_output && Ini.HLESaveTTY.GetValue())
+			m_output->Write(packet.m_text);
 
 		if(!DbgConsole::IsShown()) Show();
 	}
@@ -52,7 +76,14 @@ void DbgConsole::Task()
 
 void DbgConsole::OnQuit(wxCloseEvent& event)
 {
-	ThreadBase::Stop();
+	ThreadBase::Stop(false);
 	Hide();
+
+	if (m_output)
+	{
+		m_output->Close();
+		m_output = nullptr;
+	}
+
 	//event.Skip();
 }

@@ -58,7 +58,7 @@ VFSEntrySettingsDialog::VFSEntrySettingsDialog(wxWindow* parent, VFSManagerEntry
 	m_tctrl_mount->SetValue(m_entry.mount);
 	m_ch_type->SetSelection(m_entry.device);
 
-    wxCommandEvent ce;
+	wxCommandEvent ce;
 	OnSelectType(ce);
 }
 
@@ -188,7 +188,7 @@ void VFSManagerDialog::OnAdd(wxCommandEvent& event)
 		m_list->SetItemState(i, i == idx ? wxLIST_STATE_SELECTED : ~wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED);
 	}
 
-    wxCommandEvent ce;
+	wxCommandEvent ce;
 	OnEntryConfig(ce);
 }
 

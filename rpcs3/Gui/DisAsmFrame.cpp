@@ -121,7 +121,7 @@ class DumperThread : public ThreadBase
 	wxArrayString** arr;
 
 public:
-	DumperThread() : ThreadBase(true, "DumperThread")
+	DumperThread() : ThreadBase("DumperThread")
 	{
 	}
 
@@ -200,7 +200,7 @@ struct WaitDumperThread : public ThreadBase
 	wxArrayString** arr;
 
 	WaitDumperThread(bool* _done, u8 _cores, wxString _patch, MTProgressDialog& _prog_dial, wxArrayString** _arr) 
-		: ThreadBase()
+		: ThreadBase("WaitDumperThread")
 		, done(_done)
 		, cores(_cores)
 		, patch(_patch)
@@ -294,8 +294,10 @@ void DisAsmFrame::Dump(wxCommandEvent& WXUNUSED(event))
 
 	if(ctrl.ShowModal() == wxID_CANCEL) return;
 
-	vfsStream& f_elf = *new vfsLocalFile(Emu.m_path);
-	ConLog.Write("path: %s", Emu.m_path.mb_str());
+	vfsLocalFile& f_elf = *new vfsLocalFile(nullptr);
+	f_elf.Open(Emu.m_path);
+
+	ConLog.Write("path: %s", Emu.m_path.wx_str());
 	Elf_Ehdr ehdr;
 	ehdr.Load(f_elf);
 
@@ -384,8 +386,8 @@ void DisAsmFrame::Dump(wxCommandEvent& WXUNUSED(event))
 
 		const wxString name = sh < name_arr.GetCount() ? name_arr[sh] : "Unknown";
 
-		fd.Write(wxString::Format("Start of section header %s[%d] (instructions count: %d)\n", name.mb_str(), sh, sh_size));
-		prog_dial.Update(0, vsize, wxString::Format("Disasm %s section", name.mb_str()));
+		fd.Write(wxString::Format("Start of section header %s[%d] (instructions count: %d)\n", name.wx_str(), sh, sh_size));
+		prog_dial.Update(0, vsize, wxString::Format("Disasm %s section", name.wx_str()));
 
 		if(Memory.IsGoodAddr(sh_addr))
 		{
@@ -397,7 +399,7 @@ void DisAsmFrame::Dump(wxCommandEvent& WXUNUSED(event))
 				fd.Write(disasm->last_opcode);
 			}
 		}
-		fd.Write(wxString::Format("End of section header %s[%d]\n\n", name.mb_str(), sh));
+		fd.Write(wxString::Format("End of section header %s[%d]\n\n", name.wx_str(), sh));
 	}
 
 	prog_dial.Close();

@@ -1,13 +1,15 @@
 #include "stdafx.h"
 #include "CPUThread.h"
 
+reservation_struct reservation;
+
 CPUThread* GetCurrentCPUThread()
 {
 	return (CPUThread*)GetCurrentNamedThread();
 }
 
 CPUThread::CPUThread(CPUThreadType type)
-	: ThreadBase(true, "CPUThread")
+	: ThreadBase("CPUThread")
 	, m_type(type)
 	, m_stack_size(0)
 	, m_stack_addr(0)
@@ -15,31 +17,24 @@ CPUThread::CPUThread(CPUThreadType type)
 	, m_prio(0)
 	, m_sync_wait(false)
 	, m_wait_thread_id(-1)
-	, m_free_data(false)
 	, m_dec(nullptr)
 	, m_is_step(false)
 	, m_is_branch(false)
+	, m_status(Stopped)
 {
 }
 
 CPUThread::~CPUThread()
 {
-	Close();
 }
 
 void CPUThread::Close()
 {
-	if(IsAlive())
-	{
-		m_free_data = true;
-	}
-	else
-	{
-		delete m_dec;
-		m_dec = nullptr;
-	}
+	ThreadBase::Stop();
+	DoStop();
 
-	Stop();
+	delete m_dec;
+	m_dec = nullptr;
 }
 
 void CPUThread::Reset()
@@ -78,7 +73,7 @@ void CPUThread::SetId(const u32 id)
 
 void CPUThread::SetName(const std::string& name)
 {
-	m_name = name;
+	NamedThreadBase::SetThreadName(name);
 }
 
 void CPUThread::Wait(bool wait)
@@ -96,14 +91,12 @@ void CPUThread::Wait(const CPUThread& thr)
 
 bool CPUThread::Sync()
 {
-	wxCriticalSectionLocker lock(m_cs_sync);
-
 	return m_sync_wait;
 }
 
 int CPUThread::ThreadStatus()
 {
-	if(Emu.IsStopped())
+	if(Emu.IsStopped() || IsStopped() || IsPaused())
 	{
 		return CPUThread_Stopped;
 	}
@@ -118,7 +111,7 @@ int CPUThread::ThreadStatus()
 		return CPUThread_Step;
 	}
 
-	if(Emu.IsPaused() || Sync())
+	if (Emu.IsPaused() || Sync())
 	{
 		return CPUThread_Sleeping;
 	}
@@ -149,7 +142,7 @@ void CPUThread::SetBranch(const u64 pc, bool record_branch)
 {
 	if(!Memory.IsGoodAddr(m_offset + pc))
 	{
-		ConLog.Error("%s branch error: bad address 0x%llx #pc: 0x%llx", GetFName().mb_str(), m_offset + pc, m_offset + PC);
+		ConLog.Error("%s branch error: bad address 0x%llx #pc: 0x%llx", GetFName().wx_str(), m_offset + pc, m_offset + PC);
 		Emu.Pause();
 	}
 
@@ -190,12 +183,10 @@ wxArrayString CPUThread::ErrorToString(const u32 error)
 
 void CPUThread::Run()
 {
-	if(IsRunning()) Stop();
-	if(IsPaused())
-	{
-		Resume();
-		return;
-	}
+	if(!IsStopped())
+		Stop();
+
+	Reset();
 	
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_START_THREAD, this);
@@ -245,7 +236,7 @@ void CPUThread::Pause()
 	DoPause();
 	Emu.CheckStatus();
 
-	ThreadBase::Stop(false);
+	// ThreadBase::Stop(); // "Abort() called" exception
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_PAUSED_THREAD, this);
 #endif
@@ -260,9 +251,15 @@ void CPUThread::Stop()
 #endif
 
 	m_status = Stopped;
-	ThreadBase::Stop(false);
-	Reset();
-	DoStop();
+
+	if(CPUThread* thr = GetCurrentCPUThread())
+	{
+		if(thr->GetId() != GetId())
+			ThreadBase::Stop();
+	}
+	else
+		ThreadBase::Stop();
+
 	Emu.CheckStatus();
 
 #ifndef QT_UI
@@ -276,7 +273,9 @@ void CPUThread::Exec()
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_EXEC_THREAD, this);
 #endif
-	ThreadBase::Start();
+
+	if(IsRunning())
+		ThreadBase::Start();
 }
 
 void CPUThread::ExecOnce()
@@ -285,8 +284,10 @@ void CPUThread::ExecOnce()
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_EXEC_THREAD, this);
 #endif
+	m_status = Running;
 	ThreadBase::Start();
-	if(!ThreadBase::Wait()) while(m_is_step) Sleep(1);
+	ThreadBase::Stop(true,false);
+	m_status = Paused;
 #ifndef QT_UI
 	wxGetApp().SendDbgCommand(DID_PAUSE_THREAD, this);
 	wxGetApp().SendDbgCommand(DID_PAUSED_THREAD, this);
@@ -295,7 +296,7 @@ void CPUThread::ExecOnce()
 
 void CPUThread::Task()
 {
-	//ConLog.Write("%s enter", CPUThread::GetFName());
+	if (Ini.HLELogging.GetValue()) ConLog.Write("%s enter", CPUThread::GetFName().wx_str());
 
 	const Array<u64>& bp = Emu.GetBreakPoints();
 
@@ -346,19 +347,57 @@ void CPUThread::Task()
 	}
 	catch(const wxString& e)
 	{
-		ConLog.Error("Exception: %s", e.mb_str());
+		ConLog.Error("Exception: %s", e.wx_str());
 	}
 	catch(const char* e)
 	{
-		ConLog.Error("Exception: %s", e);
+		ConLog.Error("Exception: %s", wxString(e).wx_str());
 	}
-
-	//ConLog.Write("%s leave", CPUThread::GetFName());
-
-	if(m_free_data)
+	catch(int exitcode)
 	{
-		delete m_dec;
-		m_dec = nullptr;
-		free(this);
+		ConLog.Success("Exit Code: %d", exitcode);
 	}
+
+	if (Ini.HLELogging.GetValue()) ConLog.Write("%s leave", CPUThread::GetFName().wx_str());
+}
+
+s64 CPUThread::ExecAsCallback(u64 pc, bool wait, u64 a1, u64 a2, u64 a3, u64 a4) // not multithread-safe
+{
+	while (m_alive)
+	{
+		if (Emu.IsStopped())
+		{
+			ConLog.Warning("ExecAsCallback() aborted");
+			return CELL_ECANCELED; // doesn't mean anything
+		}
+		Sleep(1);
+	}
+
+	Stop();
+	Reset();
+
+	SetEntry(pc);
+	SetPrio(1001);
+	SetStackSize(0x10000);
+	SetExitStatus(CELL_OK);
+
+	SetArg(0, a1);
+	SetArg(1, a2);
+	SetArg(2, a3);
+	SetArg(3, a4);
+	Run();
+
+	Exec();
+
+	while (wait && m_alive)
+	{
+		if (Emu.IsStopped())
+		{
+			ConLog.Warning("ExecAsCallback() aborted");
+			return CELL_EABORT; // doesn't mean anything
+		}
+		Sleep(1);
+	}
+
+	return wait * m_exit_status;
 }

@@ -1,16 +1,20 @@
 #pragma once
 
+#include <atomic>
 #include "Gui/MemoryViewer.h"
 #include "Emu/CPU/CPUThreadManager.h"
 #include "Emu/Io/Pad.h"
 #include "Emu/Io/Keyboard.h"
 #include "Emu/Io/Mouse.h"
 #include "Emu/GS/GSManager.h"
+#include "Emu/Audio/AudioManager.h"
 #include "Emu/FS/VFS.h"
 #include "Emu/DbgConsole.h"
 #include "Loader/Loader.h"
 #include "SysCalls/Callback.h"
-#include "SysCalls/Modules.h"
+
+class EventManager;
+extern void UnloadModules();
 
 struct EmuInfo
 {
@@ -64,9 +68,8 @@ class Emulator
 		InterpreterDisAsm,
 		Interpreter,
 	};
-
-	mutable wxCriticalSection m_cs_status;
-	Status m_status;
+		
+	volatile uint m_status;
 	uint m_mode;
 
 	u32 m_rsx_callback;
@@ -85,7 +88,11 @@ class Emulator
 	IdManager m_id_manager;
 	DbgConsole* m_dbg_console;
 	GSManager m_gs_manager;
+	AudioManager m_audio_manager;
 	CallbackManager m_callback_manager;
+	CPUThread* m_ppu_callback_thr;
+	std::unique_ptr<EventManager> m_event_manager;
+
 	VFS m_vfs;
 
 	EmuInfo m_info;
@@ -101,16 +108,6 @@ public:
 	void SetPath(const wxString& path, const wxString& elf_path = wxEmptyString);
 	void SetTitleID(const wxString& id);
 
-	std::shared_ptr<vfsFileBase> OpenFile(const wxString& path, vfsOpenMode mode = vfsRead)
-	{
-		return std::shared_ptr<vfsFileBase>((vfsFileBase*)m_vfs.Open(path, mode));
-	}
-
-	std::shared_ptr<vfsStream> OpenStream(const wxString& path, vfsOpenMode mode = vfsRead)
-	{
-		return std::shared_ptr<vfsStream>(m_vfs.Open(path, mode));
-	}
-
 	CPUThreadManager&	GetCPU()				{ return m_thread_manager; }
 	PadManager&			GetPadManager()			{ return m_pad_manager; }
 	KeyboardManager&	GetKeyboardManager()	{ return m_keyboard_manager; }
@@ -118,10 +115,13 @@ public:
 	IdManager&			GetIdManager()			{ return m_id_manager; }
 	DbgConsole&			GetDbgCon()				{ return *m_dbg_console; }
 	GSManager&			GetGSManager()			{ return m_gs_manager; }
+	AudioManager&		GetAudioManager()		{ return m_audio_manager; }
 	CallbackManager&	GetCallbackManager()	{ return m_callback_manager; }
 	VFS&				GetVFS()				{ return m_vfs; }
 	Array<u64>&			GetBreakPoints()		{ return m_break_points; }
 	Array<u64>&			GetMarkedPoints()		{ return m_marked_points; }
+	CPUThread&			GetCallbackThread()		{ return *m_ppu_callback_thr; }
+	EventManager&		GetEventManager()		{ return *m_event_manager; }
 	
 	void AddModuleInit(ModuleInitializer* m)
 	{
@@ -145,9 +145,6 @@ public:
 	u32 GetPPUThreadExit() const { return m_ppu_thr_exit; }
 
 	void CheckStatus();
-
-	bool IsSelf(const std::string& path);
-	bool DecryptSelf(const std::string& elf, const std::string& self);
 	bool BootGame(const std::string& path);
 
 	void Load();
@@ -159,10 +156,10 @@ public:
 	void SavePoints(const std::string& path);
 	void LoadPoints(const std::string& path);
 
-	__forceinline bool IsRunning()	const { wxCriticalSectionLocker lock(m_cs_status); return m_status == Running; }
-	__forceinline bool IsPaused()	const { wxCriticalSectionLocker lock(m_cs_status); return m_status == Paused; }
-	__forceinline bool IsStopped()	const { wxCriticalSectionLocker lock(m_cs_status); return m_status == Stopped; }
-	__forceinline bool IsReady()	const { wxCriticalSectionLocker lock(m_cs_status); return m_status == Ready; }
+	__forceinline bool IsRunning()	const { return m_status == Running; }
+	__forceinline bool IsPaused()	const { return m_status == Paused; }
+	__forceinline bool IsStopped()	const { return m_status == Stopped; }
+	__forceinline bool IsReady()	const { return m_status == Ready; }
 };
 
 extern Emulator Emu;
