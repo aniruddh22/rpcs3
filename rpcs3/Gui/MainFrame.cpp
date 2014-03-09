@@ -333,9 +333,9 @@ void MainFrame::Config(wxCommandEvent& WXUNUSED(event))
 	wxStaticBoxSizer* s_round_cpu_decoder( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Decoder") ) );
 
 	wxStaticBoxSizer* s_round_gs( new wxStaticBoxSizer( wxVERTICAL, &diag, _("GS") ) );
-	wxStaticBoxSizer* s_round_gs_render( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Render") ) );
-	wxStaticBoxSizer* s_round_gs_res( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Default resolution") ) );
-	wxStaticBoxSizer* s_round_gs_aspect( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Default aspect ratio") ) );
+	wxStaticBoxSizer* s_round_gs_render( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Rendu") ) );
+	wxStaticBoxSizer* s_round_gs_res( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Résolution par défaut") ) );
+	wxStaticBoxSizer* s_round_gs_aspect( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Format d'image par défaut") ) );
 
 	wxStaticBoxSizer* s_round_io( new wxStaticBoxSizer( wxVERTICAL, &diag, _("IO") ) );
 	wxStaticBoxSizer* s_round_io_pad_handler( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Pad Handler") ) );
@@ -343,7 +343,7 @@ void MainFrame::Config(wxCommandEvent& WXUNUSED(event))
 	wxStaticBoxSizer* s_round_io_mouse_handler( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Mouse Handler") ) );
 	
 	wxStaticBoxSizer* s_round_audio( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Audio") ) );
-	wxStaticBoxSizer* s_round_audio_out( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Audio Out") ) );
+	wxStaticBoxSizer* s_round_audio_out( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Sortie audio") ) );
 
 	wxStaticBoxSizer* s_round_hle( new wxStaticBoxSizer( wxVERTICAL, &diag, _("HLE / Misc.") ) );
 

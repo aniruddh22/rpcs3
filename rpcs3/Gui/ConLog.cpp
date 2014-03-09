@@ -226,7 +226,7 @@ LogFrame::LogFrame(wxWindow* parent)
 	, m_log(*new wxListView(this))
 {
 	m_log.InsertColumn(0, wxEmptyString);
-	m_log.InsertColumn(1, "Log");
+	m_log.InsertColumn(1, "Journal");
 	m_log.SetBackgroundColour(wxColour("Black"));
 
 	wxBoxSizer& s_main = *new wxBoxSizer(wxVERTICAL);
