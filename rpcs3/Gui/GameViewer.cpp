@@ -50,7 +50,7 @@ void GameViewer::LoadPSF()
 	m_game_data.Clear();
 	for(uint i=0; i<m_games.GetCount(); ++i)
 	{
-		const wxString& path = m_path + m_games[i] + "/PARAM.SFO";
+		const wxString& path = m_path + m_games[i] + "/PS3_GAME/PARAM.SFO";
 		vfsFile f;
 		if(!f.Open(path))
 			continue;
