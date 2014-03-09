@@ -80,37 +80,37 @@ MainFrame::MainFrame()
 	wxMenuBar& menubar(*new wxMenuBar());
 
 	wxMenu& menu_boot(*new wxMenu());
-	menubar.Append(&menu_boot, "Boot");
-	menu_boot.Append(id_boot_game, "Boot game");
-	menu_boot.Append(id_install_pkg, "Install PKG");
+	menubar.Append(&menu_boot, "Démarrage");
+	menu_boot.Append(id_boot_game, "Démarrer le jeu");
+	menu_boot.Append(id_install_pkg, "Installez le PKG");
 	menu_boot.AppendSeparator();
-	menu_boot.Append(id_boot_elf, "Boot (S)ELF");
+	menu_boot.Append(id_boot_elf, "Démarrage du (S)ELF");
 
 	wxMenu& menu_sys(*new wxMenu());
-	menubar.Append(&menu_sys, "System");
+	menubar.Append(&menu_sys, "Système");
 	menu_sys.Append(id_sys_pause, "Pause")->Enable(false);
-	menu_sys.Append(id_sys_stop, "Stop\tCtrl + S")->Enable(false);
+	menu_sys.Append(id_sys_stop, "Arrêter\tCtrl + S")->Enable(false);
 	menu_sys.AppendSeparator();
 	menu_sys.Append(id_sys_send_open_menu, "Send open system menu cmd")->Enable(false);
 	menu_sys.Append(id_sys_send_exit, "Send exit cmd")->Enable(false);
 
 	wxMenu& menu_conf(*new wxMenu());
 	menubar.Append(&menu_conf, "Config");
-	menu_conf.Append(id_config_emu, "Settings");
-	menu_conf.Append(id_config_pad, "PAD Settings");
+	menu_conf.Append(id_config_emu, "Paramètres");
+	menu_conf.Append(id_config_pad, "Paramètres de la Manette");
 	menu_conf.AppendSeparator();
-	menu_conf.Append(id_config_vfs_manager, "Virtual File System Manager");
-	menu_conf.Append(id_config_vhdd_manager, "Virtual HDD Manager");
+	menu_conf.Append(id_config_vfs_manager, "Gestionnaire de système de fichiers virtuel");
+	menu_conf.Append(id_config_vhdd_manager, "Gestionnaire virtuelle du HDD");
 
 	wxMenu& menu_tools(*new wxMenu());
-	menubar.Append(&menu_tools, "Tools");
-	menu_tools.Append(id_tools_compiler, "ELF Compiler");
-	menu_tools.Append(id_tools_memory_viewer, "Memory Viewer");
-	menu_tools.Append(id_tools_rsx_debugger, "RSX Debugger");
+	menubar.Append(&menu_tools, "Outils");
+	menu_tools.Append(id_tools_compiler, "Compilateur ELF");
+	menu_tools.Append(id_tools_memory_viewer, "Observateur mémoire");
+	menu_tools.Append(id_tools_rsx_debugger, "Debugger RSX");
 
 	wxMenu& menu_help(*new wxMenu());
-	menubar.Append(&menu_help, "Help");
-	menu_help.Append(id_help_about, "About...");
+	menubar.Append(&menu_help, "Aide");
+	menu_help.Append(id_help_about, "A propos...");
 
 	SetMenuBar(&menubar);
 
@@ -119,8 +119,8 @@ MainFrame::MainFrame()
 	m_debugger_frame = new DebuggerPanel(this);
 	ConLogFrame = new LogFrame(this);
 
-	AddPane(m_game_viewer, "Game List", wxAUI_DOCK_BOTTOM);
-	AddPane(ConLogFrame, "Log", wxAUI_DOCK_BOTTOM);
+	AddPane(m_game_viewer, "Liste de jeux", wxAUI_DOCK_BOTTOM);
+	AddPane(ConLogFrame, "Journal", wxAUI_DOCK_BOTTOM);
 	AddPane(m_debugger_frame, "Debugger", wxAUI_DOCK_RIGHT);
 	
 	// Events
