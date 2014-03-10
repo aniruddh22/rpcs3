@@ -80,37 +80,37 @@ MainFrame::MainFrame()
 	wxMenuBar& menubar(*new wxMenuBar());
 
 	wxMenu& menu_boot(*new wxMenu());
-	menubar.Append(&menu_boot, "Boot");
-	menu_boot.Append(id_boot_game, "Boot game");
-	menu_boot.Append(id_install_pkg, "Install PKG");
+	menubar.Append(&menu_boot, "Démarrage");
+	menu_boot.Append(id_boot_game, "Lancer un jeu");
+	menu_boot.Append(id_install_pkg, "Installez un PKG");
 	menu_boot.AppendSeparator();
-	menu_boot.Append(id_boot_elf, "Boot (S)ELF");
+	menu_boot.Append(id_boot_elf, " Lancer un (S)ELF");
 
 	wxMenu& menu_sys(*new wxMenu());
-	menubar.Append(&menu_sys, "System");
+	menubar.Append(&menu_sys, "Système");
 	menu_sys.Append(id_sys_pause, "Pause")->Enable(false);
-	menu_sys.Append(id_sys_stop, "Stop\tCtrl + S")->Enable(false);
+	menu_sys.Append(id_sys_stop, "Arrêter\tCtrl + S")->Enable(false);
 	menu_sys.AppendSeparator();
 	menu_sys.Append(id_sys_send_open_menu, "Send open system menu cmd")->Enable(false);
 	menu_sys.Append(id_sys_send_exit, "Send exit cmd")->Enable(false);
 
 	wxMenu& menu_conf(*new wxMenu());
-	menubar.Append(&menu_conf, "Config");
-	menu_conf.Append(id_config_emu, "Settings");
-	menu_conf.Append(id_config_pad, "PAD Settings");
+	menubar.Append(&menu_conf, "Configuration");
+	menu_conf.Append(id_config_emu, "Paramétrages");
+	menu_conf.Append(id_config_pad, "Paramétrages de la Manette");
 	menu_conf.AppendSeparator();
-	menu_conf.Append(id_config_vfs_manager, "Virtual File System Manager");
-	menu_conf.Append(id_config_vhdd_manager, "Virtual HDD Manager");
+	menu_conf.Append(id_config_vfs_manager, "Gestionnaire de système de fichiers virtuel");
+	menu_conf.Append(id_config_vhdd_manager, "Gestionnaire de disque dur virtuel");
 
 	wxMenu& menu_tools(*new wxMenu());
-	menubar.Append(&menu_tools, "Tools");
-	menu_tools.Append(id_tools_compiler, "ELF Compiler");
-	menu_tools.Append(id_tools_memory_viewer, "Memory Viewer");
-	menu_tools.Append(id_tools_rsx_debugger, "RSX Debugger");
+	menubar.Append(&menu_tools, "Outils");
+	menu_tools.Append(id_tools_compiler, "Compilateur ELF");
+	menu_tools.Append(id_tools_memory_viewer, "Observateur mémoire");
+	menu_tools.Append(id_tools_rsx_debugger, "Débogueur RSX");
 
 	wxMenu& menu_help(*new wxMenu());
-	menubar.Append(&menu_help, "Help");
-	menu_help.Append(id_help_about, "About...");
+	menubar.Append(&menu_help, "Aide");
+	menu_help.Append(id_help_about, "A propos...");
 
 	SetMenuBar(&menubar);
 
@@ -119,9 +119,9 @@ MainFrame::MainFrame()
 	m_debugger_frame = new DebuggerPanel(this);
 	ConLogFrame = new LogFrame(this);
 
-	AddPane(m_game_viewer, "Game List", wxAUI_DOCK_BOTTOM);
-	AddPane(ConLogFrame, "Log", wxAUI_DOCK_BOTTOM);
-	AddPane(m_debugger_frame, "Debugger", wxAUI_DOCK_RIGHT);
+	AddPane(m_game_viewer, "Liste des jeux", wxAUI_DOCK_BOTTOM);
+	AddPane(ConLogFrame, "Journal", wxAUI_DOCK_BOTTOM);
+	AddPane(m_debugger_frame, "Débogueur", wxAUI_DOCK_RIGHT);
 	
 	// Events
 	Connect( id_boot_game,			 wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler(MainFrame::BootGame) );
@@ -323,7 +323,7 @@ void MainFrame::Config(wxCommandEvent& WXUNUSED(event))
 		paused = true;
 	}
 
-	wxDialog diag(this, wxID_ANY, "Settings", wxDefaultPosition);
+	wxDialog diag(this, wxID_ANY, "Paramétrages", wxDefaultPosition);
 
 	wxBoxSizer* s_panel(new wxBoxSizer(wxHORIZONTAL));
 	wxBoxSizer* s_subpanel1(new wxBoxSizer(wxVERTICAL));
@@ -333,9 +333,9 @@ void MainFrame::Config(wxCommandEvent& WXUNUSED(event))
 	wxStaticBoxSizer* s_round_cpu_decoder( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Decoder") ) );
 
 	wxStaticBoxSizer* s_round_gs( new wxStaticBoxSizer( wxVERTICAL, &diag, _("GS") ) );
-	wxStaticBoxSizer* s_round_gs_render( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Render") ) );
-	wxStaticBoxSizer* s_round_gs_res( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Default resolution") ) );
-	wxStaticBoxSizer* s_round_gs_aspect( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Default aspect ratio") ) );
+	wxStaticBoxSizer* s_round_gs_render( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Rendu") ) );
+	wxStaticBoxSizer* s_round_gs_res( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Résolution par défaut") ) );
+	wxStaticBoxSizer* s_round_gs_aspect( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Ratio d'aspect par défaut") ) );
 
 	wxStaticBoxSizer* s_round_io( new wxStaticBoxSizer( wxVERTICAL, &diag, _("IO") ) );
 	wxStaticBoxSizer* s_round_io_pad_handler( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Pad Handler") ) );
@@ -343,7 +343,7 @@ void MainFrame::Config(wxCommandEvent& WXUNUSED(event))
 	wxStaticBoxSizer* s_round_io_mouse_handler( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Mouse Handler") ) );
 	
 	wxStaticBoxSizer* s_round_audio( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Audio") ) );
-	wxStaticBoxSizer* s_round_audio_out( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Audio Out") ) );
+	wxStaticBoxSizer* s_round_audio_out( new wxStaticBoxSizer( wxVERTICAL, &diag, _("Sortie audio") ) );
 
 	wxStaticBoxSizer* s_round_hle( new wxStaticBoxSizer( wxVERTICAL, &diag, _("HLE / Misc.") ) );
 
