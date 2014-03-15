@@ -60,7 +60,9 @@ int cellAudioInit()
 			memset(buffer2, 0, sizeof(buffer2));
 			memset(oal_buffer.get(), 0, oal_buffer_size * sizeof(u16));
 
-			if(Ini.AudioOutMode.GetValue() == 1)
+			Array<u64> keys;
+
+			if(m_audio_out)
 			{
 				m_audio_out->Init();
 				m_audio_out->Open(oal_buffer.get(), oal_buffer_size*sizeof(u16));
@@ -144,14 +146,25 @@ int cellAudioInit()
 				}
 
 				// send aftermix event (normal audio event)
-				// TODO: check event source
-				Emu.GetEventManager().SendEvent(m_config.event_key, 0x10103000e010e07, 0, 0, 0);
+				{
+					std::lock_guard<std::mutex> lock(m_config.m_mutex);
+					keys.SetCount(m_config.m_keys.GetCount());
+					memcpy(keys.GetPtr(), m_config.m_keys.GetPtr(), sizeof(u64) * keys.GetCount());
+				}
+				for (u32 i = 0; i < keys.GetCount(); i++)
+				{
+					// TODO: check event source
+					Emu.GetEventManager().SendEvent(keys[i], 0x10103000e010e07, 0, 0, 0);
+				}
 
 				oal_buffer_offset += sizeof(buffer) / sizeof(float);
 
 				if(oal_buffer_offset >= oal_buffer_size)
 				{
-					m_audio_out->AddData(oal_buffer.get(), oal_buffer_offset * sizeof(u16));
+					if(m_audio_out)
+					{
+						m_audio_out->AddData(oal_buffer.get(), oal_buffer_offset * sizeof(u16));
+					}
 
 					oal_buffer_offset = 0;
 				}
@@ -438,21 +451,27 @@ int cellAudioCreateNotifyEventQueue(mem32_t id, mem64_t key)
 {
 	cellAudio.Warning("cellAudioCreateNotifyEventQueue(id_addr=0x%x, key_addr=0x%x)", id.GetAddr(), key.GetAddr());
 
-	if (Emu.GetEventManager().CheckKey(0x80004d494f323221))
+	std::lock_guard<std::mutex> lock(m_config.m_mutex);
+
+	u64 event_key = 0;
+	while (Emu.GetEventManager().CheckKey((event_key << 48) | 0x80004d494f323221))
 	{
-		return CELL_AUDIO_ERROR_EVENT_QUEUE;
+		event_key++; // experimental
+		//return CELL_AUDIO_ERROR_EVENT_QUEUE;
 	}
+	event_key = (event_key << 48) | 0x80004d494f323221; // left part: 0x8000, 0x8001, 0x8002 ...
 
-	EventQueue* eq = new EventQueue(SYS_SYNC_FIFO, SYS_PPU_QUEUE, 0x80004d494f323221, 0x80004d494f323221, 32);
+	EventQueue* eq = new EventQueue(SYS_SYNC_FIFO, SYS_PPU_QUEUE, event_key, event_key, 32);
 
-	if (!Emu.GetEventManager().RegisterKey(eq, 0x80004d494f323221))
+	if (!Emu.GetEventManager().RegisterKey(eq, event_key))
 	{
 		delete eq;
 		return CELL_AUDIO_ERROR_EVENT_QUEUE;
 	}
 
+	m_config.m_keys.AddCpy(event_key);
 	id = cellAudio.GetNewId(eq);
-	key = 0x80004d494f323221;
+	key = event_key;
 
 	return CELL_OK;
 }
@@ -467,7 +486,9 @@ int cellAudioSetNotifyEventQueue(u64 key)
 {
 	cellAudio.Warning("cellAudioSetNotifyEventQueue(key=0x%llx)", key);
 
-	m_config.event_key = key;
+	std::lock_guard<std::mutex> lock(m_config.m_mutex);
+
+	m_config.m_keys.AddCpy(key);
 
 	/*EventQueue* eq;
 	if (!Emu.GetEventManager().GetEventQueue(key, eq))
@@ -490,13 +511,30 @@ int cellAudioRemoveNotifyEventQueue(u64 key)
 {
 	cellAudio.Warning("cellAudioRemoveNotifyEventQueue(key=0x%llx)", key);
 
-	EventQueue* eq;
-	if (!Emu.GetEventManager().GetEventQueue(key, eq))
+	std::lock_guard<std::mutex> lock(m_config.m_mutex);
+
+	bool found = false;
+	for (u32 i = 0; i < m_config.m_keys.GetCount(); i++)
 	{
+		if (m_config.m_keys[i] == key)
+		{
+			m_config.m_keys.RemoveAt(i);
+			found = true;
+			break;
+		}
+	}
+
+	if (!found)
+	{
+		// ???
 		return CELL_AUDIO_ERROR_PARAM;
 	}
 
-	m_config.event_key = 0;
+	/*EventQueue* eq;
+	if (!Emu.GetEventManager().GetEventQueue(key, eq))
+	{
+		return CELL_AUDIO_ERROR_PARAM;
+	}*/
 
 	// TODO: disconnect port
 
