@@ -46,8 +46,8 @@ u64 rotl64(const u64 x, const u8 n) { return (x << n) | (x >> (64 - n)); }
 u64 rotr64(const u64 x, const u8 n) { return (x >> n) | (x << (64 - n)); }
 */
 
-#define rotl32 _rotl
-#define rotr32 _rotr
+#define rotl32(x, n) _rotl64((u64)(u32)x | ((u64)(u32)x << 32), n)
+#define rotr32(x, n) _rotr64((u64)(u32)x | ((u64)(u32)x << 32), n)
 #define rotl64 _rotl64
 #define rotr64 _rotr64
 
@@ -2177,7 +2177,7 @@ private:
 	}	
 	void RLWIMI(u32 ra, u32 rs, u32 sh, u32 mb, u32 me, bool rc)
 	{
-		const u32 mask = rotate_mask[32 + mb][32 + me];
+		const u64 mask = rotate_mask[32 + mb][32 + me];
 		CPU.GPR[ra] = (CPU.GPR[ra] & ~mask) | (rotl32(CPU.GPR[rs], sh) & mask);
 		if(rc) CPU.UpdateCR0<s32>(CPU.GPR[ra]);
 	}
@@ -2612,10 +2612,10 @@ private:
 	}
 	void SUBFE(u32 rd, u32 ra, u32 rb, u32 oe, bool rc)
 	{
-		const s64 RA = CPU.GPR[ra];
-		const s64 RB = CPU.GPR[rb];
-		CPU.GPR[ra] = ~RA + RB + CPU.XER.CA;
-		CPU.XER.CA = ((u64)~RA + CPU.XER.CA > ~(u64)RB) | ((RA == 0) & CPU.XER.CA);
+		const u64 RA = CPU.GPR[ra];
+		const u64 RB = CPU.GPR[rb];
+		CPU.GPR[rd] = ~RA + RB + CPU.XER.CA;
+		CPU.XER.CA = (~RA + CPU.XER.CA > ~RB) | ((RA == 0) & CPU.XER.CA);
 		if(rc) CPU.UpdateCR0<s64>(CPU.GPR[rd]);
 		if(oe) UNK("subfeo");
 	}
@@ -2734,6 +2734,14 @@ private:
 		if(oe) ConLog.Warning("addzeo");
 		if(rc) CPU.UpdateCR0<s64>(CPU.GPR[rd]);
 	}
+	void SUBFZE(u32 rd, u32 ra, u32 oe, bool rc)
+	{
+		const u64 RA = CPU.GPR[ra];
+		CPU.GPR[rd] = ~RA + CPU.XER.CA;
+		CPU.XER.CA = (~RA + CPU.XER.CA > ~0x0) | ((RA == 0) & CPU.XER.CA);
+		if (oe) ConLog.Warning("subfzeo");
+		if (rc) CPU.UpdateCR0<s64>(CPU.GPR[rd]);
+	}
 	void STDCX_(u32 rs, u32 ra, u32 rb)
 	{
 		const u64 addr = ra ? CPU.GPR[ra] + CPU.GPR[rb] : CPU.GPR[rb];
@@ -2758,6 +2766,14 @@ private:
 	void STVX(u32 vs, u32 ra, u32 rb)
 	{
 		Memory.Write128((ra ? CPU.GPR[ra] + CPU.GPR[rb] : CPU.GPR[rb]) & ~0xfULL, CPU.VPR[vs]._u128);
+	}
+	void SUBFME(u32 rd, u32 ra, u32 oe, bool rc)
+	{
+		const u64 RA = CPU.GPR[ra];
+		CPU.GPR[rd] = ~RA + CPU.XER.CA + 0xFFFFFFFFFFFFFFFF;
+		CPU.XER.CA = (~RA + CPU.XER.CA > ~0xFFFFFFFFFFFFFFFF) | ((RA == 0) & CPU.XER.CA);
+		if (oe) ConLog.Warning("subfmeo");
+		if (rc) CPU.UpdateCR0<s64>(CPU.GPR[rd]);
 	}
 	void MULLD(u32 rd, u32 ra, u32 rb, u32 oe, bool rc)
 	{
@@ -3030,6 +3046,34 @@ private:
 
 		Memory.ReadRight(CPU.VPR[vd]._u8, addr & ~0xf, eb);
 	}
+	void LSWI(u32 rd, u32 ra, u32 nb)
+	{
+		u64 EA = ra ? CPU.GPR[ra] : 0;
+		u64 N = nb ? nb : 32;
+		u8 reg = CPU.GPR[rd];
+
+		while (N > 0)
+		{
+			if (N > 3)
+			{
+				CPU.GPR[reg] = Memory.Read32(EA);
+				EA += 4;
+				N -= 4;
+			}
+			else
+			{
+				u32 buf = 0;
+				while (N > 0)
+				{
+					N = N - 1;
+					buf |= Memory.Read8(EA) <<(N*8) ;
+					EA = EA + 1;
+				}
+				CPU.GPR[reg] = buf;
+			}
+			reg = (reg + 1) % 32;
+		}
+	}
 	void LFSUX(u32 frd, u32 ra, u32 rb)
 	{
 		const u64 addr = CPU.GPR[ra] + CPU.GPR[rb];
@@ -3072,6 +3116,34 @@ private:
 		const u8 eb = addr & 0xf;
 
 		Memory.WriteRight(addr - eb, eb, CPU.VPR[vs]._u8);
+	}
+	void STSWI(u32 rd, u32 ra, u32 nb)
+	{
+			u64 EA = ra ? CPU.GPR[ra] : 0;
+			u64 N = nb ? nb : 32;
+			u8 reg = CPU.GPR[rd];
+
+			while (N > 0)
+			{
+				if (N > 3)
+				{
+					Memory.Write32(EA, CPU.GPR[reg]);
+					EA += 4;
+					N -= 4;
+				}
+				else
+				{
+					u32 buf = CPU.GPR[reg];
+					while (N > 0)
+					{
+						N = N - 1;
+						Memory.Write8(EA, (0xFF000000 & buf) >> 24);
+						buf <<= 8;
+						EA = EA + 1;
+					}
+				}
+				reg = (reg + 1) % 32;
+			}
 	}
 	void STFDX(u32 frs, u32 ra, u32 rb)
 	{
@@ -3404,62 +3476,11 @@ private:
 	}
 	void FRES(u32 frd, u32 frb, bool rc)
 	{
-		double res;
-
-#ifdef _MSC_VER
-		if(_fpclass(CPU.FPR[frb]) >= _FPCLASS_NZ)
-#else
-		if(_fpclass(CPU.FPR[frb]) == FP_ZERO || std::signbit(CPU.FPR[frb]) == 0)
-#endif
-		{
-			res = static_cast<float>(1.0 / CPU.FPR[frb]);
-			if(FPRdouble::IsINF(res) && CPU.FPR[frb] != 0.0)
-			{
-				if(res > 0.0)
-				{
-					(u64&)res = 0x47EFFFFFE0000000ULL;
-				}
-				else
-				{
-					(u64&)res = 0xC7EFFFFFE0000000ULL;
-				}
-			}
-		}
-		else
-		{
-			u64 v = CPU.FPR[frb];
-
-			if(v == 0ULL)
-			{
-				v = 0x7FF0000000000000ULL;
-			}
-			else if(v == 0x8000000000000000ULL)
-			{
-				v = 0xFFF0000000000000ULL;
-			}
-			else if(FPRdouble::IsNaN(CPU.FPR[frb]))
-			{
-				v = 0x7FF8000000000000ULL;
-			}
-			else if(CPU.FPR[frb] < 0.0)
-			{
-				v = 0x8000000000000000ULL;
-			}
-			else
-			{
-				v = 0ULL;
-			}
-
-			res = (double&)v;
-		}
-
 		if(CPU.FPR[frb] == 0.0)
 		{
 			CPU.SetFPSCRException(FPSCR_ZX);
 		}
-
-		CPU.FPR[frd] = res;
-
+		CPU.FPR[frd] = static_cast<float>(1.0 / CPU.FPR[frb]);
 		if(rc) UNK("fres.");//CPU.UpdateCR1(CPU.FPR[frd]);
 	}
 	void FMULS(u32 frd, u32 fra, u32 frc, bool rc)
@@ -3790,7 +3811,12 @@ private:
 	}
 	void FRSQRTE(u32 frd, u32 frb, bool rc)
 	{
-		CPU.FPR[frd] = 1.0f / (float)sqrt(CPU.FPR[frb]);
+		if(CPU.FPR[frb] == 0.0)
+		{
+			CPU.SetFPSCRException(FPSCR_ZX);
+		}
+		CPU.FPR[frd] = static_cast<float>(1.0 / sqrt(CPU.FPR[frb]));
+		if(rc) UNK("frsqrte.");//CPU.UpdateCR1(CPU.FPR[frd]);
 	}
 	void FMSUB(u32 frd, u32 fra, u32 frc, u32 frb, bool rc)
 	{
