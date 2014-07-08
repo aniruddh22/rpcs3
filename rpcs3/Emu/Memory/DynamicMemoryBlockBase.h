@@ -87,6 +87,7 @@ bool DynamicMemoryBlockBase<PT>::AllocFixed(u64 addr, u32 size)
 
 	if (IsMyAddress(addr) || IsMyAddress(addr + size - 1))
 	{
+		assert(0);
 		return false;
 	}
 
@@ -105,7 +106,7 @@ bool DynamicMemoryBlockBase<PT>::AllocFixed(u64 addr, u32 size)
 template<typename PT>
 void DynamicMemoryBlockBase<PT>::AppendMem(u64 addr, u32 size) /* private */
 {
-	m_allocated.emplace_back(addr, size, Memory.GetBaseAddr());
+	m_allocated.emplace_back(addr, size);
 	u8* pointer = (u8*) m_allocated.back().mem;
 
 	const u32 first = MemoryBlock::FixAddr(addr) >> 12;
