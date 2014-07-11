@@ -10,7 +10,7 @@
 
 //void cellJpgDec_init();
 //Module cellJpgDec(0x000f, cellJpgDec_init);
-extern Module *cellJpgDec = nullptr;
+Module *cellJpgDec = nullptr;
 
 int cellJpgDecCreate(u32 mainHandle, u32 threadInParam, u32 threadOutParam)
 {
@@ -155,7 +155,8 @@ int cellJpgDecDecodeData(u32 mainHandle, u32 subHandle, mem8_ptr_t data, const m
 	int width, height, actual_components;
 	std::shared_ptr<unsigned char> image(stbi_load_from_memory(jpg, fileSize, &width, &height, &actual_components, 4));
 
-	if (!image) return CELL_JPGDEC_ERROR_STREAM_FORMAT;
+	if (!image)
+		return CELL_JPGDEC_ERROR_STREAM_FORMAT;
 
 	uint image_size = width * height;
 	switch((u32)current_outParam.outputColorSpace)
@@ -163,7 +164,11 @@ int cellJpgDecDecodeData(u32 mainHandle, u32 subHandle, mem8_ptr_t data, const m
 	case CELL_JPG_RGBA:
 	case CELL_JPG_RGB:
 		image_size *= current_outParam.outputColorSpace == CELL_JPG_RGBA ? 4 : 3;
-		Memory.CopyFromReal(data.GetAddr(), image.get(), image_size);
+		if (!Memory.CopyFromReal(data.GetAddr(), image.get(), image_size))
+		{
+			cellJpgDec->Error("cellJpgDecDecodeData() failed (data_addr=0x%x)", data.GetAddr());
+			return CELL_EFAULT;
+		}
 	break;
 
 	case CELL_JPG_ARGB:
