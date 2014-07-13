@@ -2,8 +2,6 @@
 #include "Utilities/Log.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/Cell/PPUThread.h"
-#include "Emu/SysCalls/SC_FUNC.h"
 #include "Emu/SysCalls/Modules.h"
 #include "cellSysutil.h"
 #include "cellResc.h"
@@ -1135,8 +1133,8 @@ int cellRescSetBufferAddress(mem32_t colorBuffers, mem32_t vertexArray, mem32_t 
 
 	if(colorBuffers.GetAddr() % COLOR_BUFFER_ALIGNMENT || vertexArray.GetAddr() % VERTEX_BUFFER_ALIGNMENT || fragmentShader.GetAddr() % FRAGMENT_SHADER_ALIGNMENT)
 	{
-		cellResc->Error("cellRescSetBufferAddress : CELL_RESC_ERROR_BAD_ARGUMENT (alignment)");
-		return CELL_RESC_ERROR_BAD_ARGUMENT;
+		cellResc->Error("cellRescSetBufferAddress : CELL_RESC_ERROR_BAD_ALIGNMENT");
+		return CELL_RESC_ERROR_BAD_ALIGNMENT;
 	}
 
 	s_rescInternalInstance->m_colorBuffersEA  = colorBuffers.GetAddr();

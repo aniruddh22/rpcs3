@@ -30,6 +30,11 @@ if (NOT MSVC)
 	add_definitions(-msse2)
 endif()
 
+if (APPLE)
+	set(CMAKE_CXX_FLAGS “${CMAKE_CXX_FLAGS} -I/opt/include/X11”)
+	set(CMAKE_C_FLAGS “${CMAKE_C_FLAGS} -I/opt/X11/include”)
+endif()
+
 If( NOT RPCS3_SRC_DIR)
   SET(RPCS3_SRC_DIR ${CMAKE_CURRENT_LIST_DIR})
   Message("-- Initializing RPCS3_SRC_DIR=${RPCS3_SRC_DIR}")
@@ -66,8 +71,6 @@ ${wxWidgets_INCLUDE_DIRS}
 ${OPENAL_INCLUDE_DIR}
 "${RPCS3_SRC_DIR}/../ffmpeg/${PLATFORM_ARCH}/include"
 "${RPCS3_SRC_DIR}"
-"${RPCS3_SRC_DIR}/Emu"
-"${RPCS3_SRC_DIR}/Gui"
 "${RPCS3_SRC_DIR}/Loader"
 "${RPCS3_SRC_DIR}/Crypto"
 "${RPCS3_SRC_DIR}/.."
